@@ -32,7 +32,7 @@ class OidcLoginControllerTest {
     SessionState session = new SessionState();
     ResponseState response = new ResponseState();
     StubAuthenticationService authentication = new StubAuthenticationService();
-    authentication.realm = Optional.of(oidcRealm(Map.of(
+    authentication.oidcRealm = Optional.of(oidcRealm(Map.of(
         "clientId", "nexus-plus",
         "authorizationEndpoint", "https://issuer.example.com/oauth2/authorize",
         "redirectUri", "http://nexus.example.com/internal/security/oidc/callback",
@@ -99,15 +99,29 @@ class OidcLoginControllerTest {
   }
 
   @Test
-  void loginOptionsExposeOidcOnlyWhenRealmIsActive() {
+  void loginOptionsExposeActiveExternalRealms() {
     StubAuthenticationService authentication = new StubAuthenticationService();
     OidcLoginController controller = new OidcLoginController(authentication, new ObjectMapper());
 
     assertEquals(false, controller.loginOptions().oidcEnabled());
+    assertEquals(false, controller.loginOptions().ldapEnabled());
 
-    authentication.realm = Optional.of(oidcRealm(Map.of("clientId", "nexus-plus")));
+    authentication.oidcRealm = Optional.of(oidcRealm(Map.of("clientId", "nexus-plus")));
 
     assertEquals(true, controller.loginOptions().oidcEnabled());
+    assertEquals(false, controller.loginOptions().ldapEnabled());
+
+    authentication.ldapRealm = Optional.of(new SecurityRealmRecord(
+        2L,
+        "ldap",
+        "LDAP",
+        "LDAP",
+        true,
+        10,
+        Map.of("source", "LDAP")));
+
+    assertEquals(true, controller.loginOptions().oidcEnabled());
+    assertEquals(true, controller.loginOptions().ldapEnabled());
   }
 
   @Test
@@ -140,7 +154,7 @@ class OidcLoginControllerTest {
         "oidc",
         null,
         new PermissionSubject("OIDC", "alice", Set.of("nx-admin"), null));
-    authentication.realm = Optional.of(oidcRealm(Map.of(
+    authentication.oidcRealm = Optional.of(oidcRealm(Map.of(
         "clientId", "nexus-plus",
         "authorizationEndpoint", "https://issuer.example.com/oauth2/authorize",
         "redirectUri", "http://nexus.example.com/callback")));
@@ -170,7 +184,7 @@ class OidcLoginControllerTest {
   @Test
   void callbackRejectsMissingOrMismatchedState() {
     StubAuthenticationService authentication = new StubAuthenticationService();
-    authentication.realm = Optional.of(oidcRealm(Map.of("clientId", "nexus-plus")));
+    authentication.oidcRealm = Optional.of(oidcRealm(Map.of("clientId", "nexus-plus")));
     OidcLoginController controller = new OidcLoginController(authentication, new ObjectMapper());
 
     ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
@@ -253,7 +267,8 @@ class OidcLoginControllerTest {
   }
 
   private static class StubAuthenticationService extends SecurityAuthenticationService {
-    private Optional<SecurityRealmRecord> realm = Optional.empty();
+    private Optional<SecurityRealmRecord> oidcRealm = Optional.empty();
+    private Optional<SecurityRealmRecord> ldapRealm = Optional.empty();
     private Optional<AuthenticatedSubject> subject = Optional.empty();
     private Optional<AuthenticatedSubject> credentialSubject = Optional.empty();
     private String presentedToken;
@@ -266,7 +281,12 @@ class OidcLoginControllerTest {
 
     @Override
     public Optional<SecurityRealmRecord> activeOidcRealm() {
-      return realm;
+      return oidcRealm;
+    }
+
+    @Override
+    public Optional<SecurityRealmRecord> activeLdapRealm() {
+      return ldapRealm;
     }
 
     @Override

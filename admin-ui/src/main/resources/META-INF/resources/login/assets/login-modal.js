@@ -54,7 +54,14 @@
           <h2 class="login-dialog-title" id="login-dialog-title">Sign in</h2>
           <button class="login-dialog-close" type="button" aria-label="Close">×</button>
         </header>
-        <form class="login-dialog-form" novalidate>
+        <div class="login-dialog-tabs" role="tablist" aria-label="Sign-in method" hidden>
+          <button class="login-dialog-tab" id="login-tab-oidc" type="button" role="tab" aria-controls="login-panel-oidc" aria-selected="false">OIDC</button>
+          <button class="login-dialog-tab" id="login-tab-password" type="button" role="tab" aria-controls="login-panel-password" aria-selected="false">Local / LDAP</button>
+        </div>
+        <div class="login-dialog-oidc-panel" id="login-panel-oidc" role="tabpanel" aria-labelledby="login-tab-oidc" hidden>
+          <button class="login-dialog-primary login-dialog-oidc-button" type="button">Sign in with SSO</button>
+        </div>
+        <form class="login-dialog-form" id="login-panel-password" role="tabpanel" aria-labelledby="login-tab-password" novalidate>
           <label>
             <span>Username</span>
             <input class="login-dialog-username" name="username" type="text" autocomplete="username" required>
@@ -65,8 +72,7 @@
           </label>
           <div class="login-dialog-error" role="alert" hidden></div>
           <div class="login-dialog-actions">
-            <button class="login-dialog-primary" type="submit">Sign in</button>
-            <button class="login-dialog-secondary" type="button" hidden>Sign in with OIDC</button>
+            <button class="login-dialog-primary login-dialog-submit" type="submit">Sign in</button>
           </div>
         </form>
       </section>
@@ -77,8 +83,12 @@
       form: root.querySelector(".login-dialog-form"),
       username: root.querySelector(".login-dialog-username"),
       password: root.querySelector(".login-dialog-password"),
-      submit: root.querySelector(".login-dialog-primary"),
-      oidc: root.querySelector(".login-dialog-secondary"),
+      submit: root.querySelector(".login-dialog-submit"),
+      tabs: root.querySelector(".login-dialog-tabs"),
+      oidcTab: root.querySelector("#login-tab-oidc"),
+      passwordTab: root.querySelector("#login-tab-password"),
+      oidcPanel: root.querySelector("#login-panel-oidc"),
+      oidc: root.querySelector(".login-dialog-oidc-button"),
       error: root.querySelector(".login-dialog-error"),
       close: root.querySelector(".login-dialog-close"),
     };
@@ -90,10 +100,54 @@
     modal.oidc.addEventListener("click", () => {
       window.location.href = `/internal/security/oidc/login?returnTo=${encodeURIComponent(returnTo)}`;
     });
+    modal.oidcTab.addEventListener("click", () => setLoginMethod("oidc", { focus: true }));
+    modal.passwordTab.addEventListener("click", () => setLoginMethod("password", { focus: true }));
+    modal.tabs.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        setLoginMethod(event.target === modal.oidcTab ? "password" : "oidc", { focus: true });
+      }
+    });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !modal.root.hidden) close();
     });
     return modal;
+  }
+
+  function setLoginMethod(method, options = {}) {
+    const dialog = ensureModal();
+    const oidcActive = method === "oidc" && !dialog.tabs.hidden;
+    dialog.oidcTab.classList.toggle("is-active", oidcActive);
+    dialog.oidcTab.setAttribute("aria-selected", String(oidcActive));
+    dialog.oidcTab.tabIndex = oidcActive ? 0 : -1;
+    dialog.passwordTab.classList.toggle("is-active", !oidcActive);
+    dialog.passwordTab.setAttribute("aria-selected", String(!oidcActive));
+    dialog.passwordTab.tabIndex = oidcActive ? -1 : 0;
+    dialog.oidcPanel.hidden = !oidcActive;
+    dialog.form.hidden = oidcActive;
+    clearError();
+    if (options.focus) {
+      const target = oidcActive ? dialog.oidc : dialog.username;
+      setTimeout(() => target.focus(), 0);
+    }
+  }
+
+  function setOidcEnabled(enabled, options = {}) {
+    const dialog = ensureModal();
+    dialog.tabs.hidden = !enabled;
+    if (enabled) {
+      setLoginMethod("oidc", options);
+    } else {
+      dialog.oidcPanel.hidden = true;
+      dialog.form.hidden = false;
+      dialog.oidcTab.setAttribute("aria-selected", "false");
+      dialog.passwordTab.setAttribute("aria-selected", "true");
+      dialog.oidcTab.tabIndex = -1;
+      dialog.passwordTab.tabIndex = 0;
+      if (options.focus) {
+        setTimeout(() => dialog.username.focus(), 0);
+      }
+    }
   }
 
   function showError(message) {
@@ -110,17 +164,21 @@
 
   async function loadLoginOptions() {
     const dialog = ensureModal();
-    dialog.oidc.hidden = true;
+    setOidcEnabled(false);
     try {
       const response = await fetch("/internal/security/login/options", {
         headers: { Accept: "application/json" },
         cache: "no-store",
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        setOidcEnabled(false, { focus: !dialog.root.hidden });
+        return;
+      }
       const options = await response.json();
-      dialog.oidc.hidden = !options.oidcEnabled;
+      dialog.passwordTab.textContent = options.ldapEnabled ? "Local / LDAP" : "Local";
+      setOidcEnabled(Boolean(options.oidcEnabled), { focus: !dialog.root.hidden });
     } catch {
-      dialog.oidc.hidden = true;
+      setOidcEnabled(false, { focus: !dialog.root.hidden });
     }
   }
 
@@ -173,8 +231,8 @@
     dialog.form.reset();
     clearError();
     dialog.root.hidden = false;
+    setOidcEnabled(false);
     loadLoginOptions();
-    setTimeout(() => dialog.username.focus(), 0);
   }
 
   function close() {

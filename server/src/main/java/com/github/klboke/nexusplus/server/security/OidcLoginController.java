@@ -82,7 +82,9 @@ public class OidcLoginController {
 
   @GetMapping("/login/options")
   public LoginOptions loginOptions() {
-    return new LoginOptions(authenticationService.activeOidcRealm().isPresent());
+    return new LoginOptions(
+        authenticationService.activeOidcRealm().isPresent(),
+        authenticationService.activeLdapRealm().isPresent());
   }
 
   @PostMapping("/login")
@@ -400,7 +402,7 @@ public class OidcLoginController {
     return text.isBlank() ? null : text;
   }
 
-  public record LoginOptions(boolean oidcEnabled) {
+  public record LoginOptions(boolean oidcEnabled, boolean ldapEnabled) {
   }
 
   public record LoginCommand(String username, String password, String returnTo) {

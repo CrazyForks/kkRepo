@@ -59,6 +59,48 @@
   padding: 20px;
 }
 
+.login-dialog-tabs,
+.login-dialog-oidc-panel,
+.login-dialog-form[hidden] {
+  display: none !important;
+}
+
+.login-dialog-tabs:not([hidden]) {
+  display: flex !important;
+  gap: 6px;
+  border-bottom: 1px solid #d8dfdb;
+  padding: 12px 20px 0;
+}
+
+.login-dialog-tab {
+  height: 36px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+  background: transparent;
+  color: #52605a;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.login-dialog-tab:hover {
+  background: #eef3f0;
+  color: #24332d;
+}
+
+.login-dialog-tab.is-active {
+  border-color: #d8dfdb;
+  background: #ffffff;
+  color: #14756b;
+  box-shadow: 0 1px 0 #ffffff;
+}
+
+.login-dialog-oidc-panel:not([hidden]) {
+  display: grid !important;
+  padding: 20px;
+}
+
 .login-dialog-form label {
   display: grid;
   gap: 6px;

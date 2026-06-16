@@ -173,6 +173,13 @@ public class SecurityAuthenticationService {
         .findFirst();
   }
 
+  @Transactional(readOnly = true)
+  public Optional<SecurityRealmRecord> activeLdapRealm() {
+    return activeRealms().stream()
+        .filter(realm -> isRealm(realm, "ldap"))
+        .findFirst();
+  }
+
   @Transactional
   public Optional<AuthenticatedSubject> authenticateOidcToken(String token) {
     if (token == null || token.split("\\.", -1).length != 3) {
