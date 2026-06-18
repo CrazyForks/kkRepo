@@ -281,9 +281,7 @@ class NugetServiceTest {
         null,
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private static RepositoryRuntime proxy(String remoteUrl) {
@@ -302,9 +300,7 @@ class NugetServiceTest {
         remoteUrl,
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private static AssetRecord asset(String path) {

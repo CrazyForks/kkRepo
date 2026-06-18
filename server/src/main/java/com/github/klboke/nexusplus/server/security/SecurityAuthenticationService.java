@@ -148,6 +148,17 @@ public class SecurityAuthenticationService {
   }
 
   @Transactional(readOnly = true)
+  public Optional<AuthenticatedSubject> authenticateStoredSubject(
+      String source, String userId, String realmId, Long apiKeyId) {
+    if (source == null || source.isBlank() || userId == null || userId.isBlank()) {
+      return Optional.empty();
+    }
+    return securityDao.findUser(source, userId)
+        .filter(this::activeUser)
+        .map(user -> toSubject(user, realmId, null, apiKeyId));
+  }
+
+  @Transactional(readOnly = true)
   public Optional<AuthenticatedSubject> authenticateAnonymous(boolean fallbackEnabled) {
     SecurityAnonymousConfigRecord config = securityDao.findAnonymousConfig()
         .orElseGet(() -> new SecurityAnonymousConfigRecord(

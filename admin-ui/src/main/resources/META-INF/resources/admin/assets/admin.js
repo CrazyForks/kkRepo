@@ -505,6 +505,9 @@ function renderRepositories() {
 }
 
 function repositoryDisplayUrl(repo) {
+  if (lowerOrEmpty(repo.format) === "docker" && repo.docker?.connectorEnabled && repo.docker?.connectorPort) {
+    return repo.docker.connectorPublicUrl || `${window.location.protocol}//${window.location.hostname}:${repo.docker.connectorPort}/v2/`;
+  }
   if (lowerOrEmpty(repo.type) === "proxy" && repo.proxy?.remoteUrl) {
     return repo.proxy.remoteUrl;
   }
@@ -1179,6 +1182,8 @@ function refreshRepositoryRecipeControls() {
   document.getElementById("repository-hosted-fields").hidden = type !== "HOSTED";
   document.getElementById("repository-proxy-fields").hidden = type !== "PROXY";
   document.getElementById("repository-group-fields").hidden = type !== "GROUP";
+  document.getElementById("repository-docker-fields").hidden = format !== "docker";
+  refreshDockerConnectorControls();
   document.getElementById("repository-blobstore").closest("label").hidden = false;
   refreshRepositoryBlobStoreLock();
   document.querySelectorAll("#repository-hosted-fields .maven-only").forEach((el) => {
@@ -1199,7 +1204,8 @@ function refreshRepositoryRemoteDefaults(recipe) {
     nuget: "https://api.nuget.org/v3/index.json",
     rubygems: "https://rubygems.org/",
     yum: "https://download.fedoraproject.org/pub/fedora/linux/",
-    raw: "https://example.com/"
+    raw: "https://example.com/",
+    docker: "https://registry-1.docker.io/"
   };
   remote.placeholder = defaults[recipe.format] || "https://example.com/";
   if (repositoryFormMode === "create" && !remote.value.trim() && defaults[recipe.format]) {
@@ -1232,11 +1238,22 @@ function repositoryFormPayload() {
       remoteUrl: document.getElementById("repository-remote-url").value.trim(),
       contentMaxAgeMinutes: content === "" ? null : Number(content),
       metadataMaxAgeMinutes: metadata === "" ? null : Number(metadata),
-      autoBlock: document.getElementById("repository-auto-block").checked
+      autoBlock: document.getElementById("repository-auto-block").checked,
+      remoteUsername: textInputValue("repository-remote-username"),
+      remotePassword: textInputValue("repository-remote-password"),
+      remotePasswordConfigured: document.getElementById("repository-remote-password-clear").checked ? false : null
     };
   } else if (type === "GROUP") {
     payload.group = {
       memberNames: [...memberTransfer.selected]
+    };
+  }
+  if (recipe?.format === "docker") {
+    const connectorPort = document.getElementById("repository-docker-connector-port").value;
+    payload.docker = {
+      connectorEnabled: document.getElementById("repository-docker-connector-enabled").checked,
+      connectorPort: connectorPort === "" ? null : Number(connectorPort),
+      connectorPublicUrl: textInputValue("repository-docker-connector-public-url")
     };
   }
   return payload;
@@ -1250,15 +1267,29 @@ function setRepositoryFormDefaults() {
   document.getElementById("repository-version-policy").value = "RELEASE";
   document.getElementById("repository-layout-policy").value = "STRICT";
   document.getElementById("repository-remote-url").value = "";
+  document.getElementById("repository-remote-username").value = "";
+  document.getElementById("repository-remote-password").value = "";
+  document.getElementById("repository-remote-password").placeholder = "";
+  document.getElementById("repository-remote-password-clear").checked = false;
   document.getElementById("repository-content-max-age").value = "1440";
   document.getElementById("repository-metadata-max-age").value = "1440";
   document.getElementById("repository-auto-block").checked = true;
+  document.getElementById("repository-docker-connector-enabled").checked = false;
+  document.getElementById("repository-docker-connector-port").value = "";
+  document.getElementById("repository-docker-connector-public-url").value = "";
   memberTransfer.selected = [];
   memberTransfer.highlight.available.clear();
   memberTransfer.highlight.selected.clear();
   memberTransfer.filter = "";
   const filterInput = document.getElementById("member-filter");
   if (filterInput) filterInput.value = "";
+  refreshDockerConnectorControls();
+}
+
+function refreshDockerConnectorControls() {
+  const enabled = document.getElementById("repository-docker-connector-enabled").checked;
+  document.getElementById("repository-docker-connector-port").disabled = !enabled;
+  document.getElementById("repository-docker-connector-public-url").disabled = !enabled;
 }
 
 function showCreateRepositoryForm() {
@@ -1310,12 +1341,22 @@ function showEditRepositoryForm(name) {
   }
   if (repo.proxy) {
     document.getElementById("repository-remote-url").value = repo.proxy.remoteUrl || "";
+    document.getElementById("repository-remote-username").value = repo.proxy.remoteUsername || "";
+    document.getElementById("repository-remote-password").value = "";
+    document.getElementById("repository-remote-password").placeholder =
+      repo.proxy.remotePasswordConfigured ? "Saved password unchanged" : "";
+    document.getElementById("repository-remote-password-clear").checked = false;
     document.getElementById("repository-content-max-age").value = repo.proxy.contentMaxAgeMinutes ?? "1440";
     document.getElementById("repository-metadata-max-age").value = repo.proxy.metadataMaxAgeMinutes ?? "1440";
     document.getElementById("repository-auto-block").checked = repo.proxy.autoBlock !== false;
   }
   if (repo.type === "GROUP" && repo.group && Array.isArray(repo.group.memberNames)) {
     memberTransfer.selected = [...repo.group.memberNames];
+  }
+  if (repo.docker) {
+    document.getElementById("repository-docker-connector-enabled").checked = Boolean(repo.docker.connectorEnabled);
+    document.getElementById("repository-docker-connector-port").value = repo.docker.connectorPort ?? "";
+    document.getElementById("repository-docker-connector-public-url").value = repo.docker.connectorPublicUrl || "";
   }
   refreshRepositoryRecipeControls();
   document.getElementById("repository-form").hidden = false;
@@ -3038,6 +3079,7 @@ document.getElementById("cancel-repository-button").addEventListener("click", hi
 document.getElementById("save-repository-button").addEventListener("click", saveRepository);
 document.getElementById("repository-form").addEventListener("submit", (event) => event.preventDefault());
 document.getElementById("repository-recipe").addEventListener("change", refreshRepositoryRecipeControls);
+document.getElementById("repository-docker-connector-enabled").addEventListener("change", refreshDockerConnectorControls);
 bindMemberTransferEvents();
 bindSecurityTransfers();
 document.getElementById("repository-table").addEventListener("click", (event) => {

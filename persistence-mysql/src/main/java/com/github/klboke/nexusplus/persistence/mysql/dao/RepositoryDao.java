@@ -2,6 +2,8 @@ package com.github.klboke.nexusplus.persistence.mysql.dao;
 
 import static com.github.klboke.nexusplus.persistence.mysql.support.JdbcRows.nullableLong;
 
+import com.github.klboke.nexusplus.core.security.EncryptionSecrets;
+import com.github.klboke.nexusplus.core.security.SecretCipher;
 import com.github.klboke.nexusplus.core.RepositoryFormat;
 import com.github.klboke.nexusplus.core.RepositoryType;
 import com.github.klboke.nexusplus.persistence.mysql.model.RepositoryRecord;
@@ -13,15 +15,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class RepositoryDao {
+  private static final List<String> SENSITIVE_PROXY_ATTRIBUTES = List.of("remotePassword");
+
   private final JdbcTemplate jdbcTemplate;
   private final JsonColumns jsonColumns;
   private final RowMapper<RepositoryRecord> rowMapper;
+  private volatile SecretCipher secretCipher;
 
   public RepositoryDao(JdbcTemplate jdbcTemplate, JsonColumns jsonColumns) {
     this.jdbcTemplate = jdbcTemplate;
@@ -40,7 +46,55 @@ public class RepositoryDao {
         rs.getString("layout_policy"),
         rs.getString("write_policy"),
         rs.getBoolean("strict_content_type_validation"),
-        jsonColumns.read(rs.getString("attributes_json")));
+        decryptAttributes(jsonColumns.read(rs.getString("attributes_json"))));
+  }
+
+  /**
+   * Repository proxy credentials are third-party credentials held by the server. Encrypt them at
+   * the DAO boundary so direct row reads never expose plaintext in {@code attributes_json}; reads
+   * decrypt for runtime use and admin views can choose whether to mask them.
+   */
+  private SecretCipher cipher() {
+    SecretCipher local = secretCipher;
+    if (local == null) {
+      local = new SecretCipher(EncryptionSecrets.credentialSecret());
+      secretCipher = local;
+    }
+    return local;
+  }
+
+  private String writeAttributes(Map<String, Object> attributes) {
+    return jsonColumns.write(transformProxySensitive(attributes, cipher()::encrypt));
+  }
+
+  private Map<String, Object> decryptAttributes(Map<String, Object> attributes) {
+    return transformProxySensitive(attributes, cipher()::decrypt);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Map<String, Object> transformProxySensitive(
+      Map<String, Object> attributes, UnaryOperator<String> transform) {
+    if (attributes == null || attributes.isEmpty()) {
+      return attributes;
+    }
+    Object rawProxy = attributes.get("proxy");
+    if (!(rawProxy instanceof Map<?, ?> rawMap)) {
+      return attributes;
+    }
+    Map<String, Object> proxy = new LinkedHashMap<>((Map<String, Object>) rawMap);
+    boolean changed = false;
+    for (String key : SENSITIVE_PROXY_ATTRIBUTES) {
+      if (proxy.get(key) instanceof String value && !value.isBlank()) {
+        proxy.put(key, transform.apply(value));
+        changed = true;
+      }
+    }
+    if (!changed) {
+      return attributes;
+    }
+    Map<String, Object> copy = new LinkedHashMap<>(attributes);
+    copy.put("proxy", proxy);
+    return copy;
   }
 
   public long insert(RepositoryRecord record) {
@@ -63,7 +117,7 @@ public class RepositoryDao {
       ps.setString(10, record.layoutPolicy());
       ps.setString(11, record.writePolicy());
       ps.setBoolean(12, record.strictContentTypeValidation());
-      ps.setString(13, jsonColumns.write(record.attributes()));
+      ps.setString(13, writeAttributes(record.attributes()));
     });
   }
 
@@ -99,7 +153,7 @@ public class RepositoryDao {
         record.layoutPolicy(),
         record.writePolicy(),
         record.strictContentTypeValidation(),
-        jsonColumns.write(record.attributes()),
+        writeAttributes(record.attributes()),
         record.id());
   }
 
@@ -125,7 +179,7 @@ public class RepositoryDao {
           record.layoutPolicy(),
           record.writePolicy(),
           record.strictContentTypeValidation(),
-          jsonColumns.write(record.attributes()),
+          writeAttributes(record.attributes()),
           record.name());
       return findByName(record.name()).orElseThrow();
     }

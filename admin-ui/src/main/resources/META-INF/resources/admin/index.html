@@ -125,6 +125,14 @@
                 <input id="repository-remote-url" type="url" placeholder="https://repo.maven.apache.org/maven2/">
               </label>
               <label>
+                <span>Remote username</span>
+                <input id="repository-remote-username" type="text" autocomplete="off">
+              </label>
+              <label>
+                <span>Remote password</span>
+                <input id="repository-remote-password" type="password" autocomplete="new-password">
+              </label>
+              <label>
                 <span>Content max age (min)</span>
                 <input id="repository-content-max-age" type="number" min="-1" value="1440">
               </label>
@@ -135,6 +143,25 @@
               <label class="checkbox-field">
                 <input id="repository-auto-block" type="checkbox" checked>
                 <span>Auto-block remote</span>
+              </label>
+              <label class="checkbox-field">
+                <input id="repository-remote-password-clear" type="checkbox">
+                <span>Clear saved password</span>
+              </label>
+            </fieldset>
+            <fieldset class="form-grid" id="repository-docker-fields" hidden>
+              <legend>Docker connector</legend>
+              <label class="checkbox-field">
+                <input id="repository-docker-connector-enabled" type="checkbox">
+                <span>Connector enabled</span>
+              </label>
+              <label>
+                <span>Connector port</span>
+                <input id="repository-docker-connector-port" type="number" min="1" max="65535" placeholder="5000">
+              </label>
+              <label class="full-width">
+                <span>Public URL</span>
+                <input id="repository-docker-connector-public-url" type="url" placeholder="https://registry.example.com">
               </label>
             </fieldset>
             <fieldset class="form-grid" id="repository-group-fields" hidden>

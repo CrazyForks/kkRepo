@@ -110,9 +110,7 @@ class MavenGroupMetadataInvalidatorTest {
         record.proxyRemoteUrl(),
         null,
         null,
-        null,
-        null,
-        List.of());
+        null, null, List.of());
   }
 
   private static RepositoryRecord repo(long id, String name, RepositoryType type) {

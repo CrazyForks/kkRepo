@@ -503,6 +503,18 @@ function repositoryBaseUrl(repoName = state.repo) {
   return new URL(`/repository/${encodeURIComponent(repoName)}/`, window.location.origin).href;
 }
 
+function dockerRepositoryBaseUrl(repo = currentRepository()) {
+  if (!repo) return "";
+  const docker = repo.docker || {};
+  if (docker.connectorEnabled && docker.connectorPublicUrl) {
+    return docker.connectorPublicUrl.replace(/\/+$/, "");
+  }
+  if (docker.connectorEnabled && docker.connectorPort) {
+    return `${window.location.protocol}//${window.location.hostname}:${docker.connectorPort}`;
+  }
+  return new URL(`/v2/${encodeURIComponent(repo.name)}`, window.location.origin).href.replace(/\/+$/, "");
+}
+
 async function fetchRepositories() {
   const res = await fetch("/internal/repositories", { headers: { Accept: "application/json" }, cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load repositories: ${res.status}`);
@@ -529,6 +541,7 @@ function normalizeRepository(repo) {
     format: (repo.format || "").toLowerCase(),
     online: repo.online,
     url: repo.url,
+    docker: repo.docker || null,
     hostedVersionPolicy: repo.hosted ? repo.hosted.versionPolicy : null,
     status: repo.online ? "Online" : "Offline",
   };
@@ -667,6 +680,9 @@ function updateRepositorySortHeaders() {
 }
 
 function repositoryClientUrl(repo) {
+  if (repo.format === "docker") {
+    return dockerRepositoryBaseUrl(repo);
+  }
   const path = repo.url || `/repository/${encodeURIComponent(repo.name)}/`;
   try {
     return new URL(path, window.location.origin).href;
@@ -1384,6 +1400,7 @@ function renderAttributesSection(detail) {
   const body = [
     renderAttributeGroup("Checksum", detail.checksum),
     renderAttributeGroup("Content", detail.content),
+    renderAttributeGroup("Docker", detail.docker),
     renderAttributeGroup("Npm", detail.npm),
     renderAttributeGroup("Provenance", detail.provenance),
   ].filter(Boolean).join("");
@@ -1742,6 +1759,65 @@ async function goUsageDetail(entry) {
   };
 }
 
+function dockerCoordinates(entry, detail = null) {
+  const docker = detail?.docker || {};
+  const image = docker.image_name || imageNameFromDockerPath(entry.path);
+  const reference = docker.reference || dockerTagFromDockerPath(entry.path) || "latest";
+  return { image, reference, digest: docker.digest || docker.raw_bytes_digest || "" };
+}
+
+function imageNameFromDockerPath(path) {
+  const parts = pathSegments(path);
+  const manifests = parts.lastIndexOf("manifests");
+  if (manifests > 0) {
+    const start = parts[0] === "v2" ? 1 : parts[0] === "docker" && parts[1] === "manifests" ? 2 : 0;
+    return parts.slice(start, manifests).join("/");
+  }
+  const blobs = parts.lastIndexOf("blobs");
+  if (blobs > 0) {
+    const start = parts[0] === "v2" ? 1 : 0;
+    return parts.slice(start, blobs).join("/");
+  }
+  return "";
+}
+
+function dockerTagFromDockerPath(path) {
+  const parts = pathSegments(path);
+  const manifests = parts.lastIndexOf("manifests");
+  if (manifests >= 0 && parts[manifests + 1]) {
+    const reference = parts[manifests + 1];
+    return reference.includes(":") ? "" : reference;
+  }
+  return "";
+}
+
+function dockerUsageDetail(entry, detail = null) {
+  const { image, reference, digest } = dockerCoordinates(entry, detail);
+  if (!image) return null;
+  const base = dockerRepositoryBaseUrl();
+  const byTag = `${base}/${image}:${reference || "latest"}`;
+  const snippets = [
+    usageSnippet("docker pull", `docker pull ${byTag}`),
+    usageSnippet("docker tag", `docker tag ${image}:${reference || "latest"} ${byTag}`),
+    usageSnippet("docker push", `docker push ${byTag}`),
+  ];
+  if (digest) {
+    snippets.push(usageSnippet("docker pull digest", `docker pull ${base}/${image}@${digest}`));
+  }
+  return {
+    crumbText: entry.path,
+    summaryRows: [
+      ["Repository", state.repo],
+      ["Format", "docker"],
+      ["Image", image],
+      ["Reference", reference || digest || "-"],
+      ["Digest", digest || "-"],
+      ["Registry URL", base],
+    ],
+    snippets,
+  };
+}
+
 async function usageDetailForEntry(entry) {
   const repo = currentRepository();
   if (!repo) return null;
@@ -1750,6 +1826,7 @@ async function usageDetailForEntry(entry) {
   if (repo.format === "npm") return npmUsageDetail(entry);
   if (repo.format === "helm") return helmUsageDetail(entry);
   if (repo.format === "go") return goUsageDetail(entry);
+  if (repo.format === "docker") return dockerUsageDetail(entry);
   return null;
 }
 
@@ -1775,6 +1852,7 @@ async function showAssetDetail(entry) {
   if (!mount) return;
   const usage = await usageDetailForEntry(entry);
   const detail = await fetchAssetAttributes(entry);
+  const dockerUsage = currentRepository()?.format === "docker" ? dockerUsageDetail(entry, detail) : null;
   const uploader = detail?.uploader || "-";
   const uploaderIp = detail?.uploaderIp || "";
   const sourceRepository = detail?.sourceRepository || entry.sourceRepository || "";
@@ -1796,13 +1874,13 @@ async function showAssetDetail(entry) {
           ${kv("SHA-1", `<code>${escapeHtml(detail?.checksum?.sha1 || entry.sha1 || "-")}</code>`, { raw: true })}
         </div>
       </section>
-      ${renderUsageSection(usage ? usage.snippets : [])}
+      ${renderUsageSection((dockerUsage || usage) ? (dockerUsage || usage).snippets : [])}
       ${renderAttributesSection(detail)}
       <div class="download-row">
         <a class="copy-button" href="${downloadUrl}" target="_blank">Download ↓</a>
       </div>
     </div>`;
-  if (usage) bindUsageControls(mount, usage.snippets);
+  if (dockerUsage || usage) bindUsageControls(mount, (dockerUsage || usage).snippets);
   bindDeleteControl(mount, entry);
 }
 

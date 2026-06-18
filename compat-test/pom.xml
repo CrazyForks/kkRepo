@@ -25,6 +25,10 @@
       <artifactId>nexus-plus-protocol-helm</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.github.klboke</groupId>
+      <artifactId>nexus-plus-protocol-docker</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
       <scope>test</scope>

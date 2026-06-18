@@ -6,6 +6,7 @@ import com.github.klboke.nexusplus.core.RepositoryFormat;
 import com.github.klboke.nexusplus.persistence.mysql.dao.AssetDao;
 import com.github.klboke.nexusplus.persistence.mysql.dao.BrowseNodeDao;
 import com.github.klboke.nexusplus.persistence.mysql.dao.ComponentDao;
+import com.github.klboke.nexusplus.persistence.mysql.dao.DockerRegistryDao;
 import com.github.klboke.nexusplus.persistence.mysql.dao.RepositoryDao;
 import com.github.klboke.nexusplus.persistence.mysql.dao.RepositoryIndexRebuildDao;
 import com.github.klboke.nexusplus.persistence.mysql.model.AssetBlobRecord;
@@ -13,7 +14,14 @@ import com.github.klboke.nexusplus.persistence.mysql.model.AssetRecord;
 import com.github.klboke.nexusplus.persistence.mysql.model.ComponentRecord;
 import com.github.klboke.nexusplus.persistence.mysql.model.RepositoryDataMigrationAssetRecord;
 import com.github.klboke.nexusplus.persistence.mysql.model.RepositoryRecord;
+import com.github.klboke.nexusplus.persistence.mysql.model.docker.DockerManifestRecord;
+import com.github.klboke.nexusplus.persistence.mysql.model.docker.DockerManifestReferenceRecord;
+import com.github.klboke.nexusplus.persistence.mysql.model.docker.DockerTagRecord;
 import com.github.klboke.nexusplus.persistence.mysql.support.HashColumns;
+import com.github.klboke.nexusplus.protocol.docker.DockerDigest;
+import com.github.klboke.nexusplus.protocol.docker.DockerManifestDescriptor;
+import com.github.klboke.nexusplus.protocol.docker.DockerManifestMetadata;
+import com.github.klboke.nexusplus.protocol.docker.DockerPathParser;
 import com.github.klboke.nexusplus.protocol.maven.MavenContentType;
 import com.github.klboke.nexusplus.protocol.maven.path.ChecksumPayload;
 import com.github.klboke.nexusplus.protocol.maven.path.HashType;
@@ -22,6 +30,7 @@ import com.github.klboke.nexusplus.protocol.maven.path.MavenPathParser;
 import com.github.klboke.nexusplus.server.blob.BlobReferenceCodec;
 import com.github.klboke.nexusplus.server.blob.BlobTransactionCleanup;
 import com.github.klboke.nexusplus.server.blob.TempBlobFiles;
+import com.github.klboke.nexusplus.server.docker.DockerManifestParser;
 import com.github.klboke.nexusplus.server.maven.BlobStorageRegistry;
 import com.github.klboke.nexusplus.server.transaction.TransientTransactionRetry;
 import java.io.ByteArrayInputStream;
@@ -29,11 +38,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +64,8 @@ class RepositoryDataMigrationWriter {
   private final BrowseNodeDao browseNodeDao;
   private final BlobStorageRegistry blobStorageRegistry;
   private final RepositoryIndexRebuildDao indexRebuildDao;
+  private final DockerRegistryDao dockerRegistryDao;
+  private final DockerManifestParser dockerManifestParser;
   private final TransientTransactionRetry transactionRetry;
   private final MavenPathParser mavenPathParser = new MavenPathParser();
 
@@ -62,6 +76,8 @@ class RepositoryDataMigrationWriter {
       BrowseNodeDao browseNodeDao,
       BlobStorageRegistry blobStorageRegistry,
       RepositoryIndexRebuildDao indexRebuildDao,
+      DockerRegistryDao dockerRegistryDao,
+      DockerManifestParser dockerManifestParser,
       TransientTransactionRetry transactionRetry) {
     this.repositoryDao = repositoryDao;
     this.componentDao = componentDao;
@@ -69,6 +85,8 @@ class RepositoryDataMigrationWriter {
     this.browseNodeDao = browseNodeDao;
     this.blobStorageRegistry = blobStorageRegistry;
     this.indexRebuildDao = indexRebuildDao;
+    this.dockerRegistryDao = dockerRegistryDao;
+    this.dockerManifestParser = dockerManifestParser;
     this.transactionRetry = transactionRetry;
   }
 
@@ -85,11 +103,12 @@ class RepositoryDataMigrationWriter {
     Map<MavenPath, WriteResult> checksumResults = new LinkedHashMap<>();
     try {
       checksumUploads.putAll(generatedMavenChecksumUploads(repository, storage, source, upload.digests()));
+      String contentType = firstNonBlank(source.contentType(), responseContentType);
       WriteResult result = transactionRetry.execute(
           "Persist migrated asset " + repository.name() + "/" + source.sourcePath(),
           () -> {
-            WriteResult persisted = persist(
-                repository, source, upload, firstNonBlank(source.contentType(), responseContentType), null);
+            WriteResult persisted = persist(repository, source, upload, contentType, null);
+            indexMigratedDockerAsset(repository, source, upload, contentType, persisted);
             for (Map.Entry<MavenPath, ChecksumUpload> entry : checksumUploads.entrySet()) {
               ChecksumUpload checksum = entry.getValue();
               WriteResult persistedChecksum = persist(
@@ -299,6 +318,130 @@ class RepositoryDataMigrationWriter {
     return new WriteResult(componentId, persistedAsset.id(), persistedBlob.id(), persistedBlob.objectKey());
   }
 
+  private void indexMigratedDockerAsset(
+      RepositoryRecord repository,
+      RepositoryDataMigrationAssetRecord source,
+      DigestedUpload upload,
+      String contentType,
+      WriteResult persisted) {
+    if (repository.format() != RepositoryFormat.DOCKER) {
+      return;
+    }
+    dockerBlobMigrationTarget(source.sourcePath())
+        .ifPresent(target -> validateMigratedDockerBlob(source, upload, target));
+    dockerManifestMigrationTarget(source.sourcePath())
+        .ifPresent(target -> indexMigratedDockerManifest(repository, source, upload, contentType, persisted, target));
+  }
+
+  private void validateMigratedDockerBlob(
+      RepositoryDataMigrationAssetRecord source,
+      DigestedUpload upload,
+      DockerBlobMigrationTarget target) {
+    if (!target.digest().isSha256()) {
+      throw new IllegalStateException("Unsupported Docker blob digest algorithm for migrated asset "
+          + source.sourcePath() + ": " + target.digest().algorithm());
+    }
+    if (!target.digest().hex().equals(upload.digests().sha256())) {
+      throw new IllegalStateException("Docker blob digest mismatch for migrated asset " + source.sourcePath()
+          + ": expected " + target.digest().value() + ", actual sha256:" + upload.digests().sha256());
+    }
+  }
+
+  private void indexMigratedDockerManifest(
+      RepositoryRecord repository,
+      RepositoryDataMigrationAssetRecord source,
+      DigestedUpload upload,
+      String contentType,
+      WriteResult persisted,
+      DockerManifestMigrationTarget target) {
+    byte[] body = readTemp(upload);
+    DockerDigest digest = new DockerDigest("sha256", upload.digests().sha256());
+    if (DockerPathParser.isDigestReference(target.reference())
+        && !DockerDigest.parse(target.reference()).equals(digest)) {
+      throw new IllegalStateException("Docker manifest digest mismatch for migrated asset " + source.sourcePath()
+          + ": expected " + target.reference() + ", actual " + digest.value());
+    }
+    DockerManifestMetadata metadata = dockerManifestParser.parse(body, contentType);
+    Map<String, Object> attributes = dockerManifestAttributes(source, digest);
+    DockerManifestRecord manifest = dockerRegistryDao.upsertManifest(new DockerManifestRecord(
+        null,
+        repository.id(),
+        target.imageName(),
+        DockerRegistryDao.hash(target.imageName()),
+        digest.algorithm(),
+        digest.value(),
+        DockerRegistryDao.hash(digest.value()),
+        metadata.mediaType(),
+        metadata.artifactType(),
+        metadata.subjectDigest(),
+        metadata.subjectDigest() == null ? null : DockerRegistryDao.hash(metadata.subjectDigest()),
+        persisted.assetId(),
+        upload.digests().size(),
+        firstNonBlank(source.sourceCreatedBy(), CREATED_BY),
+        source.sourceCreatedByIp(),
+        null,
+        attributes,
+        null,
+        null));
+    dockerRegistryDao.replaceManifestReferences(manifest.id(), metadata.references().stream()
+        .map(ref -> dockerManifestReference(manifest.id(), repository.id(), target.imageName(), ref))
+        .toList());
+    if (!DockerPathParser.isDigestReference(target.reference())) {
+      DockerPathParser.validateTag(target.reference());
+      dockerRegistryDao.upsertTag(new DockerTagRecord(
+          null,
+          repository.id(),
+          target.imageName(),
+          DockerRegistryDao.hash(target.imageName()),
+          target.reference(),
+          DockerRegistryDao.hash(target.reference()),
+          manifest.id(),
+          digest.value(),
+          firstNonBlank(source.sourceCreatedBy(), CREATED_BY),
+          source.sourceCreatedByIp(),
+          null,
+          null));
+    }
+  }
+
+  private static DockerManifestReferenceRecord dockerManifestReference(
+      long manifestId,
+      long repositoryId,
+      String imageName,
+      DockerManifestDescriptor ref) {
+    return new DockerManifestReferenceRecord(
+        null,
+        manifestId,
+        repositoryId,
+        imageName,
+        ref.digest(),
+        DockerRegistryDao.hash(ref.digest()),
+        ref.kind(),
+        ref.mediaType(),
+        ref.size(),
+        ref.platform(),
+        ref.annotations());
+  }
+
+  private static Map<String, Object> dockerManifestAttributes(
+      RepositoryDataMigrationAssetRecord source,
+      DockerDigest digest) {
+    LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put("source", "nexus-repository-data-migration");
+    attributes.put("rawBytesDigest", digest.value());
+    putIfPresent(attributes, "sourceAssetId", source.sourceAssetId());
+    putIfPresent(attributes, "sourceBlobRef", source.sourceBlobRef());
+    return Map.copyOf(attributes);
+  }
+
+  private static byte[] readTemp(DigestedUpload upload) {
+    try {
+      return Files.readAllBytes(upload.tempFile());
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read staged Docker manifest", e);
+    }
+  }
+
   private Long upsertComponent(
       RepositoryRecord repository,
       RepositoryDataMigrationAssetRecord source,
@@ -474,7 +617,35 @@ class RepositoryDataMigrationWriter {
         source.metadata() == null ? null : source.metadata().get("attributes"));
     putIfPresent(attributes, "sourceComponentAttributes",
         source.metadata() == null ? null : source.metadata().get("componentAttributes"));
+    Map<String, Object> docker = dockerAssetAttributes(source, digests);
+    if (!docker.isEmpty()) {
+      attributes.put("docker", docker);
+    }
     return Map.copyOf(attributes);
+  }
+
+  private static Map<String, Object> dockerAssetAttributes(
+      RepositoryDataMigrationAssetRecord source,
+      Digests digests) {
+    if (source.format() != RepositoryFormat.DOCKER) {
+      return Map.of();
+    }
+    LinkedHashMap<String, Object> docker = new LinkedHashMap<>();
+    docker.put("kind", dockerAssetKind(source.sourcePath()));
+    dockerBlobMigrationTarget(source.sourcePath()).ifPresent(target -> {
+      docker.put("imageName", target.imageName());
+      docker.put("digest", target.digest().value());
+    });
+    dockerManifestMigrationTarget(source.sourcePath()).ifPresent(target -> {
+      docker.put("imageName", target.imageName());
+      docker.put("reference", target.reference());
+      if (DockerPathParser.isDigestReference(target.reference())) {
+        docker.put("digest", target.reference());
+      } else {
+        docker.put("rawBytesDigest", "sha256:" + digests.sha256());
+      }
+    });
+    return Map.copyOf(docker);
   }
 
   private static Map<String, Object> componentAttributes(RepositoryDataMigrationAssetRecord source) {
@@ -512,6 +683,7 @@ class RepositoryDataMigrationWriter {
       case NUGET -> source.sourcePath().endsWith(".nupkg") ? "PACKAGE" : "ASSET";
       case RUBYGEMS -> source.sourcePath().endsWith(".gem") ? "PACKAGE" : "ASSET";
       case YUM -> source.sourcePath().endsWith(".rpm") ? "PACKAGE" : "METADATA";
+      case DOCKER -> dockerAssetKind(source.sourcePath());
       case RAW -> "asset";
     };
   }
@@ -537,6 +709,88 @@ class RepositoryDataMigrationWriter {
       return "metadata";
     }
     return "artifact";
+  }
+
+  private static String dockerAssetKind(String path) {
+    if (path == null) {
+      return "ASSET";
+    }
+    if (path.contains("/manifests/")) {
+      return "MANIFEST";
+    }
+    if (path.contains("/blobs/")) {
+      return "BLOB";
+    }
+    if (path.endsWith("/tags/list")) {
+      return "TAGS";
+    }
+    return "ASSET";
+  }
+
+  static Optional<DockerManifestMigrationTarget> dockerManifestMigrationTarget(String path) {
+    List<String> segments = normalizedSegments(path);
+    int manifest = rightSideEndpoint(segments, "manifests", 1);
+    if (manifest <= 0) {
+      return Optional.empty();
+    }
+    List<String> imageSegments = dockerImageSegments(segments, manifest);
+    if (imageSegments.isEmpty()) {
+      return Optional.empty();
+    }
+    String imageName = String.join("/", imageSegments);
+    String reference = segments.get(manifest + 1);
+    DockerPathParser.validateImageName(imageName);
+    if (!DockerPathParser.isDigestReference(reference)) {
+      DockerPathParser.validateTag(reference);
+    }
+    return Optional.of(new DockerManifestMigrationTarget(imageName, reference));
+  }
+
+  static Optional<DockerBlobMigrationTarget> dockerBlobMigrationTarget(String path) {
+    List<String> segments = normalizedSegments(path);
+    int blob = rightSideEndpoint(segments, "blobs", 1);
+    if (blob <= 0) {
+      return Optional.empty();
+    }
+    List<String> imageSegments = dockerImageSegments(segments, blob);
+    if (imageSegments.isEmpty()) {
+      return Optional.empty();
+    }
+    String imageName = String.join("/", imageSegments);
+    DockerPathParser.validateImageName(imageName);
+    return Optional.of(new DockerBlobMigrationTarget(imageName, DockerDigest.parse(segments.get(blob + 1))));
+  }
+
+  private static int rightSideEndpoint(List<String> segments, String endpoint, int trailingSegments) {
+    int index = segments.size() - trailingSegments - 1;
+    return index > 0 && endpoint.equals(segments.get(index)) ? index : -1;
+  }
+
+  private static List<String> dockerImageSegments(List<String> segments, int endpointIndex) {
+    if (endpointIndex <= 0) {
+      return List.of();
+    }
+    int start = endpointIndex > 1 && "v2".equals(segments.get(0)) ? 1 : 0;
+    return segments.subList(start, endpointIndex);
+  }
+
+  private static List<String> normalizedSegments(String path) {
+    if (path == null || path.isBlank()) {
+      return List.of();
+    }
+    String normalized = path.trim();
+    while (normalized.startsWith("/")) normalized = normalized.substring(1);
+    while (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
+    if (normalized.isBlank()) {
+      return List.of();
+    }
+    List<String> segments = new ArrayList<>();
+    for (String segment : normalized.split("/")) {
+      if (!segment.isBlank()) {
+        segments.add(URLDecoder.decode(segment, StandardCharsets.UTF_8));
+      }
+    }
+    return List.copyOf(segments);
   }
 
   private static String goAssetKind(String path) {
@@ -603,5 +857,11 @@ class RepositoryDataMigrationWriter {
       Digests digests,
       Path tempFile,
       boolean uploaded) {
+  }
+
+  record DockerManifestMigrationTarget(String imageName, String reference) {
+  }
+
+  record DockerBlobMigrationTarget(String imageName, DockerDigest digest) {
   }
 }

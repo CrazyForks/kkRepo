@@ -1,0 +1,122 @@
+CREATE TABLE docker_manifest (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  repository_id BIGINT UNSIGNED NOT NULL,
+  image_name VARCHAR(255) NOT NULL,
+  image_name_hash BINARY(32) NOT NULL,
+  digest_algorithm VARCHAR(32) NOT NULL,
+  digest VARCHAR(255) NOT NULL,
+  digest_hash BINARY(32) NOT NULL,
+  media_type VARCHAR(255) NOT NULL,
+  artifact_type VARCHAR(255) NULL,
+  subject_digest VARCHAR(255) NULL,
+  subject_digest_hash BINARY(32) NULL,
+  asset_id BIGINT UNSIGNED NOT NULL,
+  size BIGINT UNSIGNED NOT NULL,
+  pushed_by VARCHAR(255) NULL,
+  pushed_by_ip VARCHAR(64) NULL,
+  deleted_at DATETIME(3) NULL,
+  attributes_json JSON NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_docker_manifest_digest (repository_id, image_name_hash, digest_hash),
+  KEY idx_docker_manifest_subject (repository_id, subject_digest_hash),
+  KEY idx_docker_manifest_image_updated (repository_id, image_name_hash, updated_at),
+  KEY idx_docker_manifest_asset (asset_id),
+  CONSTRAINT fk_docker_manifest_repository FOREIGN KEY (repository_id) REFERENCES repository (id) ON DELETE CASCADE,
+  CONSTRAINT fk_docker_manifest_asset FOREIGN KEY (asset_id) REFERENCES asset (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE docker_tag (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  repository_id BIGINT UNSIGNED NOT NULL,
+  image_name VARCHAR(255) NOT NULL,
+  image_name_hash BINARY(32) NOT NULL,
+  tag VARCHAR(128) NOT NULL,
+  tag_hash BINARY(32) NOT NULL,
+  manifest_id BIGINT UNSIGNED NOT NULL,
+  manifest_digest VARCHAR(255) NOT NULL,
+  pushed_by VARCHAR(255) NULL,
+  pushed_by_ip VARCHAR(64) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_docker_tag (repository_id, image_name_hash, tag_hash),
+  KEY idx_docker_tag_image_tag (repository_id, image_name_hash, tag),
+  KEY idx_docker_tag_manifest (manifest_id),
+  CONSTRAINT fk_docker_tag_repository FOREIGN KEY (repository_id) REFERENCES repository (id) ON DELETE CASCADE,
+  CONSTRAINT fk_docker_tag_manifest FOREIGN KEY (manifest_id) REFERENCES docker_manifest (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE docker_manifest_reference (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  manifest_id BIGINT UNSIGNED NOT NULL,
+  repository_id BIGINT UNSIGNED NOT NULL,
+  image_name VARCHAR(255) NOT NULL,
+  digest VARCHAR(255) NOT NULL,
+  digest_hash BINARY(32) NOT NULL,
+  reference_kind VARCHAR(32) NOT NULL,
+  media_type VARCHAR(255) NULL,
+  size BIGINT UNSIGNED NULL,
+  platform_json JSON NULL,
+  annotations_json JSON NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_docker_reference_digest (repository_id, digest_hash),
+  KEY idx_docker_reference_manifest_kind (manifest_id, reference_kind),
+  CONSTRAINT fk_docker_reference_manifest FOREIGN KEY (manifest_id) REFERENCES docker_manifest (id) ON DELETE CASCADE,
+  CONSTRAINT fk_docker_reference_repository FOREIGN KEY (repository_id) REFERENCES repository (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE docker_upload_session (
+  uuid VARCHAR(64) NOT NULL,
+  repository_id BIGINT UNSIGNED NOT NULL,
+  image_name VARCHAR(255) NOT NULL,
+  image_name_hash BINARY(32) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  next_offset BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  digest_algorithm VARCHAR(32) NULL,
+  expected_digest VARCHAR(255) NULL,
+  created_by VARCHAR(255) NULL,
+  created_by_ip VARCHAR(64) NULL,
+  expires_at DATETIME(3) NOT NULL,
+  locked_by VARCHAR(255) NULL,
+  locked_until DATETIME(3) NULL,
+  attributes_json JSON NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (uuid),
+  KEY idx_docker_upload_repository (repository_id, image_name_hash, status),
+  KEY idx_docker_upload_expires (expires_at),
+  CONSTRAINT fk_docker_upload_repository FOREIGN KEY (repository_id) REFERENCES repository (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE docker_upload_chunk (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  session_uuid VARCHAR(64) NOT NULL,
+  chunk_index INT NOT NULL,
+  start_offset BIGINT UNSIGNED NOT NULL,
+  end_offset BIGINT UNSIGNED NOT NULL,
+  blob_ref VARCHAR(1024) NULL,
+  object_key VARCHAR(2048) NULL,
+  sha256 CHAR(64) NOT NULL,
+  size BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_docker_upload_chunk (session_uuid, chunk_index),
+  KEY idx_docker_upload_chunk_session (session_uuid, start_offset),
+  CONSTRAINT fk_docker_upload_chunk_session FOREIGN KEY (session_uuid) REFERENCES docker_upload_session (uuid) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE docker_auth_token (
+  token_hash CHAR(64) NOT NULL,
+  subject_source VARCHAR(100) NOT NULL,
+  subject_user_id VARCHAR(255) NOT NULL,
+  subject_realm_id VARCHAR(255) NULL,
+  subject_api_key_id BIGINT UNSIGNED NULL,
+  scopes_json JSON NOT NULL,
+  expires_at DATETIME(3) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (token_hash),
+  KEY idx_docker_auth_token_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

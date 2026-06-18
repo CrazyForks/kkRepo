@@ -168,9 +168,7 @@ class MavenAssetWriterConcurrencyTest {
         "http://127.0.0.1:8080/repository/maven-public",
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private record StoredPair(MavenAssetWriter.Stored first, MavenAssetWriter.Stored second) {}

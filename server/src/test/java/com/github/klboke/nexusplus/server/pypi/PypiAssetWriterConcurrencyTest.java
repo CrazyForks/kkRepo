@@ -192,9 +192,7 @@ class PypiAssetWriterConcurrencyTest {
         "https://mirrors.aliyun.com/pypi",
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private record StoredPair(PypiAssetWriter.Stored first, PypiAssetWriter.Stored second) {}

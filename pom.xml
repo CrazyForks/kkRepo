@@ -22,6 +22,7 @@
     <module>protocol-pypi</module>
     <module>protocol-go</module>
     <module>protocol-helm</module>
+    <module>protocol-docker</module>
     <module>protocol-nuget</module>
     <module>protocol-rubygems</module>
     <module>protocol-yum</module>
@@ -152,6 +153,11 @@
       <dependency>
         <groupId>com.github.klboke</groupId>
         <artifactId>nexus-plus-protocol-helm</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.klboke</groupId>
+        <artifactId>nexus-plus-protocol-docker</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

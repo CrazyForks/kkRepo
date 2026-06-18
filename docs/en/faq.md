@@ -120,7 +120,9 @@ Always run preflight and review migration reports before cutover.
 
 ## Is Docker / OCI supported?
 
-Docker / OCI Registry support is in progress. The plan is to implement Docker-specific `/v2/...` routing on a dedicated Docker traffic port, with path-based repository routing first and per-repository connector ports as a later compatibility enhancement.
+Docker / OCI Registry hosted, proxy, and group repositories are implemented for Registry HTTP API V2 client workflows. Use Docker's `/v2/...` route: shared-entrypoint deployments use `<host>/<repo>/<image>:<tag>`, and repository-level connector ports can expose `<host>:<repo-port>/<image>:<tag>` when configured.
+
+Docker migration, runtime connector reload, V1 search, and full OCI conformance workflows are still being completed.
 
 Do not assume Docker pull/push works through `/repository/<repo>/...`.
 

@@ -101,6 +101,10 @@
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
+      <artifactId>nexus-plus-protocol-docker</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.github.klboke</groupId>
       <artifactId>nexus-plus-protocol-nuget</artifactId>
     </dependency>
     <dependency>

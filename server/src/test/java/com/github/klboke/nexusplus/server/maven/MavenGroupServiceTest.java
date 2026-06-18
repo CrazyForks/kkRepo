@@ -203,9 +203,7 @@ class MavenGroupServiceTest {
         null,
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private static RepositoryRuntime proxy() {
@@ -224,9 +222,7 @@ class MavenGroupServiceTest {
         "http://127.0.0.1:8080/repository/maven-public/",
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private static CachedAssetMetadata snapshot(long assetId, long repositoryId, String path, AssetBlobRecord blob) {

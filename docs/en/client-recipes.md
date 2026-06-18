@@ -299,12 +299,28 @@ curl -O https://nexus.example.com/repository/raw-group/releases/archive.tar.gz
 
 ## Docker / OCI
 
-Docker / OCI Registry support is in progress. See the [Docker / OCI development plan](dev/docker-repository-implementation-plan.md).
+Docker / OCI Registry support uses the Registry HTTP API V2 `/v2/...` route, not the normal `/repository/<repo>/...` artifact route.
 
-The planned client shape uses a dedicated Docker port and path-based repository routing:
+Shared-entrypoint or reverse-proxy deployments can expose path-based repository routing:
 
 ```text
-<host>:<docker-port>/<repo>/<image>:<tag>
+<host>:<shared-port>/<repo>/<image>:<tag>
+```
+
+Examples:
+
+```bash
+docker login nexus.example.com
+docker pull nexus.example.com/docker-proxy/library/alpine:3.20
+docker tag alpine:3.20 nexus.example.com/docker-hosted/team/alpine:3.20
+docker push nexus.example.com/docker-hosted/team/alpine:3.20
+docker pull nexus.example.com/docker-group/team/alpine:3.20
+```
+
+Repository-level Docker connector ports can also expose the standard Docker image shape when configured:
+
+```text
+<host>:<repo-port>/<image>:<tag>
 ```
 
 Do not assume Docker pull/push works through `/repository/<repo>/...`.

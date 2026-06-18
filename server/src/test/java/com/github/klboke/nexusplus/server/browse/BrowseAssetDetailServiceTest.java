@@ -84,6 +84,50 @@ class BrowseAssetDetailServiceTest {
     assertEquals(List.of(key(repository.id(), storagePath)), assets.pathLookups);
   }
 
+  @Test
+  void dockerAssetDetailExposesDockerMetadata() {
+    RepositoryRecord repository = repository(1L, "docker-hosted", RepositoryFormat.DOCKER, RepositoryType.HOSTED);
+    String path = "docker/manifests/library/alpine/sha256/"
+        + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    AssetRecord manifest = new AssetRecord(
+        10L,
+        repository.id(),
+        null,
+        100L,
+        RepositoryFormat.DOCKER,
+        path,
+        HashColumns.pathHash(path),
+        "library/alpine@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "MANIFEST",
+        "application/vnd.oci.image.manifest.v1+json",
+        1024L,
+        null,
+        Instant.parse("2026-05-27T00:00:00Z"),
+        Map.of("docker", Map.of(
+            "imageName", "library/alpine",
+            "reference", "latest",
+            "digest", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType", "application/vnd.oci.image.manifest.v1+json")));
+    AssetBlobRecord blob = blob(100L, 1024L);
+    StubAssetDao assets = new StubAssetDao(
+        Map.of(key(repository.id(), path), manifest),
+        Map.of(blob.id(), blob));
+    BrowseAssetDetailService service = new BrowseAssetDetailService(
+        new StubRepositoryDao(),
+        assets,
+        new StubBlobStorageRegistry(new StubBlobStorage(new byte[0])),
+        new ObjectMapper());
+
+    BrowseAssetDetailService.BrowseAssetDetail detail = service.detail(repository, path, null);
+
+    assertEquals("MANIFEST", detail.docker().get("asset_kind"));
+    assertEquals("library/alpine", detail.docker().get("image_name"));
+    assertEquals("latest", detail.docker().get("reference"));
+    assertEquals("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        detail.docker().get("digest"));
+    assertEquals("application/vnd.oci.image.manifest.v1+json", detail.docker().get("media_type"));
+  }
+
   private static RepositoryRecord repository(
       long id,
       String name,

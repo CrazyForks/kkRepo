@@ -2,6 +2,7 @@ package com.github.klboke.nexusplus.server.metrics;
 
 import com.github.klboke.nexusplus.core.RepositoryFormat;
 import com.github.klboke.nexusplus.persistence.mysql.model.RepositoryRecord;
+import com.github.klboke.nexusplus.server.docker.DockerConnectorConfiguration;
 import com.github.klboke.nexusplus.server.security.AuthenticatedSubject;
 import com.github.klboke.nexusplus.server.security.RepositorySecurityFilter;
 import io.micrometer.core.instrument.Timer;
@@ -182,6 +183,20 @@ public class RepositoryRequestMetricsFilter extends OncePerRequestFilter {
       String path = slash < 0 ? "" : remaining.substring(slash + 1);
       return repository.isBlank() ? null : new Target(decode(repository), path, "repository");
     }
+    if (uri.startsWith("/v2/")) {
+      Object connectorRepository =
+          request.getAttribute(DockerConnectorConfiguration.CONNECTOR_REPOSITORY_ATTRIBUTE);
+      if (connectorRepository instanceof String repository && !repository.isBlank()) {
+        return new Target(repository, uri.substring("/v2/".length()), "repository");
+      }
+      String remaining = uri.substring("/v2/".length());
+      if (remaining.isBlank()) return null;
+      int slash = remaining.indexOf('/');
+      if (slash < 0) return null;
+      String repository = remaining.substring(0, slash);
+      String path = remaining.substring(slash + 1);
+      return repository.isBlank() ? null : new Target(decode(repository), path, "repository");
+    }
     if (uri.startsWith("/service/rest/repository/browse/")) {
       String remaining = uri.substring("/service/rest/repository/browse/".length());
       if (remaining.isBlank()) return null;
@@ -224,6 +239,7 @@ public class RepositoryRequestMetricsFilter extends OncePerRequestFilter {
       case NUGET -> nugetOperation(path, normalizedMethod);
       case RUBYGEMS -> rubygemsOperation(path, normalizedMethod);
       case YUM -> yumOperation(path, normalizedMethod);
+      case DOCKER -> dockerOperation(path, normalizedMethod);
       case RAW -> rawOperation(normalizedMethod);
     };
   }
@@ -301,6 +317,23 @@ public class RepositoryRequestMetricsFilter extends OncePerRequestFilter {
     if ("PUT".equals(method) || "POST".equals(method)) return "raw_upload";
     if ("DELETE".equals(method)) return "raw_delete";
     return "raw_download";
+  }
+
+  private static String dockerOperation(String path, String method) {
+    if ("POST".equals(method) || "PATCH".equals(method) || "PUT".equals(method)) {
+      if (path.contains("/blobs/uploads/") || path.endsWith("/blobs/uploads")) return "docker_blob_upload";
+      if (path.contains("/manifests/")) return "docker_manifest_upload";
+    }
+    if ("DELETE".equals(method)) {
+      if (path.contains("/blobs/uploads/")) return "docker_upload_cancel";
+      if (path.contains("/manifests/")) return "docker_manifest_delete";
+      return "docker_delete";
+    }
+    if (path.contains("/manifests/")) return "docker_manifest";
+    if (path.contains("/blobs/")) return "docker_blob";
+    if (path.endsWith("/tags/list")) return "docker_tags";
+    if (path.contains("/referrers/")) return "docker_referrers";
+    return "docker_repository";
   }
 
   private static int statusFor(Throwable failure, int fallback) {

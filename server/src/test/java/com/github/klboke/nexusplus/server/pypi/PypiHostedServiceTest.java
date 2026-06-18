@@ -81,9 +81,7 @@ class PypiHostedServiceTest {
         null,
         null,
         null,
-        null,
-        null,
-        List.of());
+        null, null, List.of());
   }
 
   private static class EmptyAssetDao extends AssetDao {

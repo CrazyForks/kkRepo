@@ -18,7 +18,7 @@ Key conclusions:
 - The minimum pull surface is `/v2/`, manifest GET/HEAD, blob GET/HEAD, tag list, and the authentication challenge. Docker push must support blob upload sessions. Real clients commonly use `POST /blobs/uploads/` + `PATCH` + `PUT ?digest=...`, so a single PUT-only upload path is not enough.
 - Docker/OCI is content-addressed. Blob and manifest digests must be calculated from the exact original bytes on the server. Do not reorder JSON, rewrite timestamps, or canonicalize the body before calculating digests.
 - OCI referrers are now important for signatures, SBOMs, attestations, and related artifacts. The first phase can avoid blocking normal `docker pull/push` on referrers, but the data model should reserve subject/referrers indexes from the start.
-- Nexus Docker supports both path-based routing and port connectors. The first phase of nexus-plus should keep a dedicated Docker traffic port so large image layer uploads/downloads do not crowd out the main service port, Admin UI, REST APIs, or normal artifact protocol requests. Inside that port, repository resolution should still prefer path-based routing. Nexus-style per-repository connector ports can be added later as a compatibility enhancement.
+- Nexus Docker supports both path-based routing and port connectors. The first phase of nexus-plus should keep Docker connectors as dedicated traffic entrypoints so large image layer uploads/downloads do not crowd out the main service port, Admin UI, REST APIs, or normal artifact protocol requests. However, the listening port should not be a single global value. It should be stored as a Docker repository attribute during repository create/update. Each Docker repository can use a different connector port, and the server maps the local port to a fixed repository id. Path-based routing can still exist as a shared-entrypoint or reverse-proxy compatibility shape.
 
 ## Feature Scope
 
@@ -59,7 +59,7 @@ Key conclusions:
 - Persist OCI subjects and backfill referrers indexes for cosign signatures, SBOMs, attestations, and similar artifacts.
 - `/v2/_catalog`, available only to administrators or explicitly allowed registry scopes.
 - Docker V1 API and `docker search` compatibility. Nexus documentation still mentions V1 fallback, but modern Docker/OCI workflows should not depend on it, so this is lower priority than V2/OCI.
-- Nexus-style per-repository port connectors. The first phase should provide a shared dedicated Docker port for traffic isolation. If full compatibility with historical Nexus port-based image references is needed, add per-repository connector port mapping later.
+- Dynamic connector lifecycle enhancements: no-restart listener reload when a Docker repository port is added or changed, port release, certificate/SNI handling, port-level access logs, and finer-grained rate limits. The first phase should implement repository-level connector port attributes and startup-time port mapping, which is enough for multi-repository port isolation. Full dynamic lifecycle support can follow later.
 
 ## URL And Routing Design
 
@@ -67,24 +67,23 @@ Add `DockerRegistryController`. Do not attach it under the existing `RepositoryC
 
 ## Docker Traffic Port Design
 
-Docker image layers are usually much larger than Maven/npm/PyPI packages, and their connections stay open longer. The first phase should split Docker registry traffic away from the main application port into a dedicated connector. Recommended defaults:
+Docker image layers are usually much larger than Maven/npm/PyPI packages, and their connections stay open longer. The first phase should split Docker registry traffic away from the main application port into dedicated connectors, with the concrete port bound to the Docker repository configuration instead of using one global Docker port:
 
 - Main service port: `8080`, continuing to serve `/repository/...`, `/admin/`, `/browse/`, and management REST.
 - Management port: `8081`, continuing to serve actuator.
-- Docker registry port: for example `8082`, serving only `/v2/...` and the Docker token flow.
+- Docker repository connector port: for example, `docker-hosted` can use `8082` and `docker-proxy` can use `8083`, each serving only that repository's `/v2/...` and Docker token flow.
 
-The dedicated port does not replace path-based routing. It provides a traffic isolation boundary:
+Repository-level connector ports do not replace path-based routing. They provide a clearer traffic isolation boundary:
 
-- The ingress layer can configure longer upload/download timeouts, larger body limits, wider connection pools, and independent rate limits for the Docker port.
+- The ingress layer can configure longer upload/download timeouts, larger body limits, wider connection pools, and independent rate limits for different Docker repository ports.
 - The main service port can keep shorter timeouts, avoiding image layer long connections slowing down the UI, permission management, migration console, and normal repository protocol requests.
-- Kubernetes Service / Ingress can expose the Docker port independently and apply HPA, monitoring, alerts, and circuit breakers specifically to Docker traffic.
+- Kubernetes Service / Ingress can expose Docker traffic by repository port, which makes HPA, monitoring, alerts, and circuit breakers easier to scope.
 - The Tomcat layer should give the Docker connector an independent executor, `maxConnections`, `acceptCount`, `connectionTimeout`, and upload concurrency limits where possible. A separate listening port that still shares the same thread pool only isolates entry routing; it does not fully isolate JVM thread contention.
 - The OSS/S3 client should also reserve an independent bulkhead or connection pool settings for Docker large-object reads and writes, preventing Docker layer pulls from exhausting object storage connections used by normal artifact requests.
 
-Configuration keys to reserve:
+Global runtime keys to reserve. These enable connector capability and control shared resource pools; they do not contain the concrete repository port:
 
 - `nexus-plus.docker.connector.enabled=true`
-- `nexus-plus.docker.connector.port=8082`
 - `nexus-plus.docker.connector.threads.max`
 - `nexus-plus.docker.connector.max-connections`
 - `nexus-plus.docker.connector.accept-count`
@@ -93,27 +92,41 @@ Configuration keys to reserve:
 - `nexus-plus.docker.transfer.max-concurrent-downloads`
 - `nexus-plus.docker.transfer.response-buffer-size`
 
+Docker repository create/update attributes to reserve:
+
+- `docker.connector.enabled=true`
+- `docker.connector.port=8082`
+- `docker.connector.public-url=https://registry.example:8082`, optional, for UI examples, token `service`/realm display, and reverse-proxy deployments.
+
+Port constraints:
+
+- `docker.connector.port` is valid only for Docker-format repositories and must be unique within one nexus-plus deployment.
+- The port must not conflict with the main service port, management port, or another Docker repository connector port.
+- Repository create/update must validate port uniqueness in a MySQL transaction. On multi-replica startup, each node builds its local `port -> repository_id` mapping from Docker repository attributes in MySQL.
+- If the first phase does not support no-restart listener creation, changing a connector port can require a rolling restart, but the documentation and UI must make that operational meaning explicit.
+
 Routing strategy:
 
-- Primary Docker dedicated-port entrypoint: `http(s)://<host>:<docker-port>/v2/<repo>/<image...>/...`.
-- Docker client image reference: `<host>:<docker-port>/<repo>/<image>:<tag>`.
-- If per-repository connectors are added later, a port can be bound directly to a repository. The client reference becomes `<host>:<repo-port>/<image>:<tag>`, and the server maps that connector's local port to a fixed repository id.
+- Repository-level connector entrypoint: `http(s)://<host>:<repo-port>/v2/<image...>/...`.
+- Docker client image reference: `<host>:<repo-port>/<image>:<tag>`.
+- Optional shared-entrypoint or reverse-proxy path-based shape: `http(s)://<host>:<shared-port>/v2/<repo>/<image...>/...`, with client reference `<host>:<shared-port>/<repo>/<image>:<tag>`.
 
 Path parsing rules:
 
 | Request | Resolution |
 | --- | --- |
 | `GET /v2/` | Registry probe, not bound to a specific repository |
-| `/v2/<repo>/<image...>/manifests/<reference>` | `<repo>` is the nexus-plus repository name, and `<image...>` is the Docker repository name |
-| `/v2/<repo>/<image...>/blobs/<digest>` | Digest is an OCI digest such as `sha256:<hex>` |
-| `/v2/<repo>/<image...>/blobs/uploads/` | Create an upload session |
-| `/v2/<repo>/<image...>/blobs/uploads/<uuid>` | Read, append, complete, or cancel an upload session |
-| `/v2/<repo>/<image...>/tags/list` | Tag list |
-| `/v2/<repo>/<image...>/referrers/<digest>` | OCI referrers |
+| `/v2/<image...>/manifests/<reference>` on a repository connector | Repository comes from the local listening-port mapping, and `<image...>` is the Docker repository name |
+| `/v2/<repo>/<image...>/manifests/<reference>` on a shared path-based entrypoint | `<repo>` is the nexus-plus repository name, and `<image...>` is the Docker repository name |
+| `/v2/<image...>/blobs/<digest>` or `/v2/<repo>/<image...>/blobs/<digest>` | Digest is an OCI digest such as `sha256:<hex>` |
+| `/v2/<image...>/blobs/uploads/` or `/v2/<repo>/<image...>/blobs/uploads/` | Create an upload session |
+| `/v2/<image...>/blobs/uploads/<uuid>` or `/v2/<repo>/<image...>/blobs/uploads/<uuid>` | Read, append, complete, or cancel an upload session |
+| `/v2/<image...>/tags/list` or `/v2/<repo>/<image...>/tags/list` | Tag list |
+| `/v2/<image...>/referrers/<digest>` or `/v2/<repo>/<image...>/referrers/<digest>` | OCI referrers |
 
 Do not parse Docker image names by a fixed segment count. `<image...>` may have multiple path levels. Parse it by right-side sentinel segments: `/manifests/`, `/blobs/`, `/blobs/uploads/`, `/tags/list`, and `/referrers/`.
 
-An internal route such as `/repository/<repo>/v2/<image...>/...` can be reserved for migration and proxy scenarios, but it should not be the primary Docker client entrypoint. Public client documentation should use path-based routing on the dedicated Docker port.
+An internal route such as `/repository/<repo>/v2/<image...>/...` can be reserved for migration and proxy scenarios, but it should not be the primary Docker client entrypoint. Public client documentation should prefer the port-based shape on repository-level connector ports. If a shared entrypoint or reverse proxy is deployed, it can additionally document path-based routing examples.
 
 ## Data Model Plan
 
@@ -390,8 +403,8 @@ Tag list:
 Admin UI:
 
 - Add `docker-hosted`, `docker-proxy`, and `docker-group` to the repository recipe dropdown.
-- Show path-based pull/push examples for the dedicated Docker port.
-- Add a Docker connector configuration view showing the current Docker port, entry URL, connection count, upload/download concurrency, and rate-limit state.
+- Show repository-level connector port, public URL, and both port-based and optional path-based pull/push examples.
+- Add a Docker connector configuration view showing each Docker repository's connector port, entry URL, connection count, upload/download concurrency, and rate-limit state.
 - Add proxy configuration fields for remote authentication, Docker Hub `library` namespace hints, and remote URL path validation.
 - Reuse member order management for groups.
 - Let the Repository cache page clear Docker manifest/tag/blob cache.
@@ -436,7 +449,8 @@ Coverage:
 - Group member order, tag conflicts, and blob lookup.
 - Anonymous pull and private repository challenge.
 - Write policy: `ALLOW`, `ALLOW_ONCE`, `DENY`.
-- Dedicated Docker port path-based routing: `<host>:<docker-port>/<repo>/<image>:<tag>`.
+- Repository-level connector port routing: `<host>:<repo-port>/<image>:<tag>`.
+- Optional shared-entrypoint path-based routing: `<host>:<shared-port>/<repo>/<image>:<tag>`.
 
 Comparison items:
 
@@ -479,7 +493,7 @@ Content Management can pass last because blob/manifest DELETE interacts with GC,
 
 - Create docker hosted/proxy/group repositories in the Nexus reference instance.
 - Capture `docker login/pull/push/delete` request logs.
-- Add failing cases in `compat-test` first, locking dedicated Docker port, path-based routing, 401 challenge, and upload response headers.
+- Add failing cases in `compat-test` first, locking repository-level connector port routing, optional shared-entrypoint path-based routing, 401 challenge, and upload response headers.
 - Produce a Nexus behavior matrix for implementation acceptance.
 
 ### M1: Format Skeleton And Routing
@@ -489,14 +503,15 @@ Content Management can pass last because blob/manifest DELETE interacts with GC,
 - Add `protocol-docker` to the root `pom.xml`.
 - Add Docker path parser, digest parser, media type constants, and error payloads.
 - Add `/v2/` and `/v2/<repo>/...` controller skeleton.
-- Add a Docker-dedicated Tomcat connector or equivalent independent entrypoint configuration, mounted only to Docker registry routes by default.
+- Add a Docker connector manager or equivalent independent entrypoint configuration that builds a `port -> repository_id` mapping from Docker repository attributes, mounted only to Docker registry routes by default.
 - Let `RepositorySecurityFilter` or a new filter recognize `/v2/...`, while Docker auth support owns the challenge.
 - Make Admin/Browse repository lists display Docker format.
 
 Acceptance:
 
-- `GET /v2/` on the dedicated Docker port matches Nexus behavior.
+- `GET /v2/` on a repository-level Docker connector port matches Nexus behavior.
 - Docker large-object requests do not go through the main service port, while `/admin/`, `/browse/`, and `/repository/...` still work on the main port.
+- Multiple Docker repositories can be created with different `docker.connector.port` values, and duplicate ports are rejected.
 - Docker hosted/proxy/group repositories can be created.
 - Unsupported Docker endpoints return registry error JSON, not Maven/npm errors.
 
@@ -615,8 +630,9 @@ Docker implementation must satisfy:
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Docker large-object traffic shares the main service port, thread pool, and object storage connections | Large image push/pull may slow down UI, management REST, and normal artifact protocols | Provide a dedicated Docker port in the first phase, with independent connector/executor, connection counts, timeouts, upload/download concurrency, and OSS/S3 bulkhead |
-| Docker path-based routing does not match `/repository/<repo>` | Docker CLI cannot be used directly | Provide `/v2/<repo>/...` on the dedicated Docker port, matching Nexus Docker behavior |
+| Docker large-object traffic shares the main service port, thread pool, and object storage connections | Large image push/pull may slow down UI, management REST, and normal artifact protocols | Provide repository-level Docker connector ports in the first phase, with independent connector/executor, connection counts, timeouts, upload/download concurrency, and OSS/S3 bulkhead |
+| Docker connector port is a single global value | Multiple Docker repositories cannot use different ports, reducing compatibility with port-based image references | Put `docker.connector.port` in Docker repository create/update attributes and validate uniqueness with a MySQL transaction |
+| Docker path-based routing does not match `/repository/<repo>` | Docker CLI cannot be used directly | Provide `/v2/<image>/...` as the primary entrypoint on repository-level connector ports. Shared-entrypoint or reverse-proxy deployments can additionally provide `/v2/<repo>/...` path-based compatibility |
 | Chunked upload depends on local temporary files | Push fails or data is lost after replica switch | Persist upload sessions and chunk staging in MySQL/OSS |
 | Manifest JSON is rewritten | Digest mismatch causes client rejection | Store original bytes and parse only for indexing |
 | Proxy upstream Bearer token handling is incomplete | Docker Hub or remote registry pulls fail | Implement a dedicated upstream auth flow and token cache |
@@ -629,11 +645,11 @@ Docker implementation must satisfy:
 Define the first deliverable as:
 
 - Support `docker-hosted`.
-- Support a dedicated Docker port and path-based `/v2/<repo>/<image>`.
+- Support repository-level Docker connector ports and port-based `/v2/<image>`; optionally support a shared path-based `/v2/<repo>/<image>` entrypoint.
 - Support Bearer token login.
 - Support Docker schema2 and OCI image manifest/index.
 - Support normal `docker push`, `docker pull`, `docker tag`, and `docker manifest inspect`.
 - Support tag list and manifest/blob HEAD.
-- Do not yet commit to proxy, group, referrers, catalog, V1 search, or per-repository port connectors.
+- Proxy and group are now part of the implemented core path. Do not yet commit to migration, GC, V1 search, no-restart port reloads, full OCI conformance workflows, or advanced connector TLS/SNI management.
 
-The second deliverable can add proxy/group, and the third can add referrers, migration, and full OCI conformance workflows. This closes the real Docker client loop early without forcing the hardest parts, such as remote authentication, group merging, and GC, into the first release.
+The next deliverables should focus on migration, GC, connector lifecycle hardening, and full OCI conformance workflows.

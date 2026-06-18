@@ -52,7 +52,7 @@ class GroupMemberAssetCacheTest {
   private static RepositoryRuntime runtime(long id, String name) {
     return new RepositoryRuntime(
         id, name, RepositoryFormat.PYPI, RepositoryType.GROUP, "pypi-group",
-        true, 1L, "ALLOW", null, null, true, null, null, null, null, null, List.of());
+        true, 1L, "ALLOW", null, null, true, null, null, null, List.of());
   }
 
   private static RepositoryRecord record(long id, String name) {

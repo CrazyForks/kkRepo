@@ -296,9 +296,7 @@ class MavenProxyServiceTest {
         REMOTE,
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private static MavenPath path(String rawPath) {

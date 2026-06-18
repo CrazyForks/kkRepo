@@ -94,7 +94,9 @@ public class RepositoryRuntimeRegistry {
     // Multiple concurrent misses on the same name are acceptable; the cache only holds a
     // recoverable runtime snapshot.
     Optional<RepositoryRuntime> resolved = resolveFresh(name);
-    writeCached(name, resolved);
+    if (resolved.isEmpty() || !containsProxySecret(resolved.get())) {
+      writeCached(name, resolved);
+    }
     return resolved;
   }
 
@@ -170,20 +172,42 @@ public class RepositoryRuntimeRegistry {
     Map<String, Object> attrs = record.attributes() == null ? Map.of() : record.attributes();
     Object proxyRaw = attrs.get("proxy");
     Object rawRaw = attrs.get("raw");
+    Object dockerRaw = attrs.get("docker");
 
     Integer contentMaxAge = null;
     Integer metadataMaxAge = null;
     Boolean autoBlock = null;
+    String proxyRemoteUsername = null;
+    String proxyRemotePassword = null;
     if (proxyRaw instanceof Map<?, ?> proxyMap) {
       contentMaxAge = asInt(proxyMap.get("contentMaxAgeMinutes"));
       metadataMaxAge = asInt(proxyMap.get("metadataMaxAgeMinutes"));
       autoBlock = asBool(proxyMap.get("autoBlock"));
+      Object username = proxyMap.get("remoteUsername");
+      if (username != null && !username.toString().isBlank()) {
+        proxyRemoteUsername = username.toString();
+      }
+      Object password = proxyMap.get("remotePassword");
+      if (password != null && !password.toString().isBlank()) {
+        proxyRemotePassword = password.toString();
+      }
     }
     String rawContentDisposition = null;
     if (rawRaw instanceof Map<?, ?> rawMap) {
       Object value = rawMap.get("contentDisposition");
       if (value != null && !value.toString().isBlank()) {
         rawContentDisposition = value.toString();
+      }
+    }
+    Boolean dockerConnectorEnabled = null;
+    Integer dockerConnectorPort = null;
+    String dockerConnectorPublicUrl = null;
+    if (dockerRaw instanceof Map<?, ?> dockerMap) {
+      dockerConnectorEnabled = asBool(dockerMap.get("connectorEnabled"));
+      dockerConnectorPort = asInt(dockerMap.get("connectorPort"));
+      Object publicUrl = dockerMap.get("connectorPublicUrl");
+      if (publicUrl != null && !publicUrl.toString().isBlank()) {
+        dockerConnectorPublicUrl = publicUrl.toString();
       }
     }
 
@@ -221,7 +245,12 @@ public class RepositoryRuntimeRegistry {
         contentMaxAge,
         metadataMaxAge,
         autoBlock,
+        proxyRemoteUsername,
+        proxyRemotePassword,
         rawContentDisposition,
+        dockerConnectorEnabled,
+        dockerConnectorPort,
+        dockerConnectorPublicUrl,
         members);
   }
 
@@ -239,5 +268,17 @@ public class RepositoryRuntimeRegistry {
     if (value == null) return null;
     if (value instanceof Boolean b) return b;
     return Boolean.parseBoolean(value.toString());
+  }
+
+  private static boolean containsProxySecret(RepositoryRuntime runtime) {
+    if (runtime.proxyRemotePassword() != null && !runtime.proxyRemotePassword().isBlank()) {
+      return true;
+    }
+    for (RepositoryRuntime member : runtime.members()) {
+      if (containsProxySecret(member)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

@@ -19,6 +19,7 @@ public final class RepositoryCommands {
       HostedSettings hosted,
       ProxySettings proxy,
       RawSettings raw,
+      DockerSettings docker,
       GroupSettings group) {
   }
 
@@ -29,6 +30,7 @@ public final class RepositoryCommands {
       HostedSettings hosted,
       ProxySettings proxy,
       RawSettings raw,
+      DockerSettings docker,
       GroupSettings group) {
   }
 
@@ -42,11 +44,27 @@ public final class RepositoryCommands {
       String remoteUrl,
       Integer contentMaxAgeMinutes,
       Integer metadataMaxAgeMinutes,
-      Boolean autoBlock) {
+      Boolean autoBlock,
+      String remoteUsername,
+      String remotePassword,
+      Boolean remotePasswordConfigured) {
+    public ProxySettings(
+        String remoteUrl,
+        Integer contentMaxAgeMinutes,
+        Integer metadataMaxAgeMinutes,
+        Boolean autoBlock) {
+      this(remoteUrl, contentMaxAgeMinutes, metadataMaxAgeMinutes, autoBlock, null, null, null);
+    }
   }
 
   public record RawSettings(
       String contentDisposition) {
+  }
+
+  public record DockerSettings(
+      Boolean connectorEnabled,
+      Integer connectorPort,
+      String connectorPublicUrl) {
   }
 
   public record GroupSettings(

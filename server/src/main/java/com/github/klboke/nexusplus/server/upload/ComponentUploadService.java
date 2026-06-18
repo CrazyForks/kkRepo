@@ -118,6 +118,7 @@ public class ComponentUploadService {
       case PYPI -> uploadPypi(runtime, upload, createdBy, createdByIp);
       case HELM -> uploadHelm(runtime, upload, createdBy, createdByIp);
       case GO -> throw new UploadValidationException("Go hosted upload is not supported");
+      case DOCKER -> throw new UploadValidationException("Docker hosted upload must use the Docker Registry V2 API");
       case NUGET -> uploadRaw(runtime, upload, createdBy, createdByIp);
       case RUBYGEMS -> uploadRaw(runtime, upload, createdBy, createdByIp);
       case YUM -> uploadYum(runtime, upload, createdBy, createdByIp);
@@ -334,6 +335,7 @@ public class ComponentUploadService {
       case PYPI -> "pypi";
       case HELM -> "helm";
       case GO -> "go";
+      case DOCKER -> "docker";
       case NUGET -> "nuget";
       case RUBYGEMS -> "rubygems";
       case YUM -> "yum";

@@ -22,6 +22,9 @@ class RepositoryRecipesTest {
     assertRecipe(recipes, "yum-hosted", RepositoryFormat.YUM, RepositoryType.HOSTED);
     assertRecipe(recipes, "yum-proxy", RepositoryFormat.YUM, RepositoryType.PROXY);
     assertRecipe(recipes, "yum-group", RepositoryFormat.YUM, RepositoryType.GROUP);
+    assertRecipe(recipes, "docker-hosted", RepositoryFormat.DOCKER, RepositoryType.HOSTED);
+    assertRecipe(recipes, "docker-proxy", RepositoryFormat.DOCKER, RepositoryType.PROXY);
+    assertRecipe(recipes, "docker-group", RepositoryFormat.DOCKER, RepositoryType.GROUP);
   }
 
   private static void assertRecipe(

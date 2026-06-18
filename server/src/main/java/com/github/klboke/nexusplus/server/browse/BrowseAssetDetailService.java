@@ -74,6 +74,7 @@ public class BrowseAssetDetailService {
     LinkedHashMap<String, Object> provenance = new LinkedHashMap<>();
     provenance.put("hashes_not_verified", false);
     Map<String, Object> npm = source.format() == RepositoryFormat.NPM ? npmAttributes(source, asset, blob) : Map.of();
+    Map<String, Object> docker = source.format() == RepositoryFormat.DOCKER ? dockerAttributes(asset, blob) : Map.of();
 
     return new BrowseAssetDetail(
         visibleRepository.name(),
@@ -88,6 +89,7 @@ public class BrowseAssetDetailService {
         blob.createdByIp(),
         checksum,
         content,
+        docker,
         npm,
         provenance);
   }
@@ -176,6 +178,28 @@ public class BrowseAssetDetailService {
     LinkedHashMap<String, Object> npm = new LinkedHashMap<>(NpmFormatAttributes.extract(packageJson.get()));
     npm.put("asset_kind", "TARBALL");
     return npm;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> dockerAttributes(AssetRecord asset, AssetBlobRecord blob) {
+    LinkedHashMap<String, Object> docker = new LinkedHashMap<>();
+    docker.put("asset_kind", asset.kind());
+    Map<String, Object> attributes = asset.attributes() == null ? Map.of() : asset.attributes();
+    Object rawDocker = attributes.get("docker");
+    if (rawDocker instanceof Map<?, ?> dockerMap) {
+      put(docker, "image_name", dockerMap.get("imageName"));
+      put(docker, "reference", dockerMap.get("reference"));
+      put(docker, "digest", dockerMap.get("digest"));
+      put(docker, "raw_bytes_digest", dockerMap.get("rawBytesDigest"));
+      put(docker, "media_type", dockerMap.get("mediaType"));
+      put(docker, "artifact_type", dockerMap.get("artifactType"));
+      put(docker, "subject_digest", dockerMap.get("subjectDigest"));
+      put(docker, "kind", dockerMap.get("kind"));
+    }
+    if (!docker.containsKey("digest") && blob.sha256() != null && !blob.sha256().isBlank()) {
+      docker.put("digest", "sha256:" + blob.sha256());
+    }
+    return Map.copyOf(docker);
   }
 
   private boolean isNpmTarball(AssetRecord asset) {
@@ -290,6 +314,7 @@ public class BrowseAssetDetailService {
       String uploaderIp,
       Map<String, Object> checksum,
       Map<String, Object> content,
+      Map<String, Object> docker,
       Map<String, Object> npm,
       Map<String, Object> provenance) {}
 }

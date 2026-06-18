@@ -231,6 +231,30 @@ public class AssetDao {
     return findAssetByPathHash(repositoryId, HashColumns.pathHash(path));
   }
 
+  public Optional<AssetRecord> findAssetById(long assetId) {
+    return jdbcTemplate.query("SELECT * FROM asset WHERE id = ?", assetRowMapper, assetId)
+        .stream()
+        .findFirst();
+  }
+
+  public Optional<AssetRecord> findDockerBlobAssetBySha256(long repositoryId, String sha256) {
+    if (sha256 == null || sha256.isBlank()) {
+      return Optional.empty();
+    }
+    return jdbcTemplate.query("""
+        SELECT a.*
+        FROM asset a
+        JOIN asset_blob b ON b.id = a.asset_blob_id
+        WHERE a.repository_id = ?
+          AND a.format = 'docker'
+          AND a.kind = 'BLOB'
+          AND b.sha256 = ?
+          AND b.deleted_at IS NULL
+        ORDER BY a.id
+        LIMIT 1
+        """, assetRowMapper, repositoryId, sha256).stream().findFirst();
+  }
+
   private Optional<Long> lockAssetIdByPathHash(long repositoryId, byte[] pathHash) {
     return jdbcTemplate.queryForList("""
         SELECT id

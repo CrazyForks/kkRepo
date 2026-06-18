@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.klboke.nexusplus.protocol.maven.path.HashType;
 import com.github.klboke.nexusplus.protocol.maven.path.MavenPath;
@@ -66,6 +67,60 @@ class RepositoryDataMigrationWriterTest {
     assertEquals("#12:1", attributes.get("sourceAssetId"));
     assertFalse(attributes.containsKey("sourceBlobRef"));
     assertFalse(attributes.containsKey("sourceMetadata"));
+  }
+
+  @Test
+  void dockerManifestMigrationTargetParsesPlainDockerV2Path() {
+    var target = RepositoryDataMigrationWriter
+        .dockerManifestMigrationTarget("v2/team/app/manifests/release-2026")
+        .orElseThrow();
+
+    assertEquals("team/app", target.imageName());
+    assertEquals("release-2026", target.reference());
+  }
+
+  @Test
+  void dockerManifestMigrationTargetParsesSourceAssetPathWithoutV2Prefix() {
+    var target = RepositoryDataMigrationWriter
+        .dockerManifestMigrationTarget("library/alpine/manifests/sha256:"
+            + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .orElseThrow();
+
+    assertEquals("library/alpine", target.imageName());
+    assertEquals("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", target.reference());
+  }
+
+  @Test
+  void dockerManifestMigrationTargetDecodesPathSegments() {
+    var target = RepositoryDataMigrationWriter
+        .dockerManifestMigrationTarget("/v2/team%2Fencoded/manifests/v1")
+        .orElseThrow();
+
+    assertEquals("team/encoded", target.imageName());
+    assertEquals("v1", target.reference());
+  }
+
+  @Test
+  void dockerManifestMigrationTargetIgnoresTagsAndBlobPaths() {
+    assertTrue(RepositoryDataMigrationWriter
+        .dockerManifestMigrationTarget("v2/team/app/tags/list")
+        .isEmpty());
+    assertTrue(RepositoryDataMigrationWriter
+        .dockerManifestMigrationTarget("v2/team/app/blobs/sha256:"
+            + "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        .isEmpty());
+  }
+
+  @Test
+  void dockerBlobMigrationTargetParsesBlobDigest() {
+    var target = RepositoryDataMigrationWriter
+        .dockerBlobMigrationTarget("v2/team/app/blobs/sha256:"
+            + "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+        .orElseThrow();
+
+    assertEquals("team/app", target.imageName());
+    assertEquals("sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        target.digest().value());
   }
 
   private static void assertChecksum(

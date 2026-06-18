@@ -25,8 +25,143 @@ public record RepositoryRuntime(
     Integer contentMaxAgeMinutes,
     Integer metadataMaxAgeMinutes,
     Boolean autoBlock,
+    String proxyRemoteUsername,
+    String proxyRemotePassword,
     String rawContentDisposition,
+    Boolean dockerConnectorEnabled,
+    Integer dockerConnectorPort,
+    String dockerConnectorPublicUrl,
     List<RepositoryRuntime> members) {
+
+  public RepositoryRuntime(
+      long id,
+      String name,
+      RepositoryFormat format,
+      RepositoryType type,
+      String recipeName,
+      boolean online,
+      Long blobStoreId,
+      String writePolicy,
+      String versionPolicy,
+      String layoutPolicy,
+      boolean strictContentTypeValidation,
+      String proxyRemoteUrl,
+      Integer contentMaxAgeMinutes,
+      Integer metadataMaxAgeMinutes,
+      Boolean autoBlock,
+      String rawContentDisposition,
+      List<RepositoryRuntime> members) {
+    this(
+        id,
+        name,
+        format,
+        type,
+        recipeName,
+        online,
+        blobStoreId,
+        writePolicy,
+        versionPolicy,
+        layoutPolicy,
+        strictContentTypeValidation,
+        proxyRemoteUrl,
+        contentMaxAgeMinutes,
+        metadataMaxAgeMinutes,
+        autoBlock,
+        null,
+        null,
+        rawContentDisposition,
+        null,
+        null,
+        null,
+        members);
+  }
+
+  public RepositoryRuntime(
+      long id,
+      String name,
+      RepositoryFormat format,
+      RepositoryType type,
+      String recipeName,
+      boolean online,
+      Long blobStoreId,
+      String writePolicy,
+      String versionPolicy,
+      String layoutPolicy,
+      boolean strictContentTypeValidation,
+      String proxyRemoteUrl,
+      Integer contentMaxAgeMinutes,
+      Integer metadataMaxAgeMinutes,
+      Boolean autoBlock,
+      String rawContentDisposition,
+      Boolean dockerConnectorEnabled,
+      Integer dockerConnectorPort,
+      String dockerConnectorPublicUrl,
+      List<RepositoryRuntime> members) {
+    this(
+        id,
+        name,
+        format,
+        type,
+        recipeName,
+        online,
+        blobStoreId,
+        writePolicy,
+        versionPolicy,
+        layoutPolicy,
+        strictContentTypeValidation,
+        proxyRemoteUrl,
+        contentMaxAgeMinutes,
+        metadataMaxAgeMinutes,
+        autoBlock,
+        null,
+        null,
+        rawContentDisposition,
+        dockerConnectorEnabled,
+        dockerConnectorPort,
+        dockerConnectorPublicUrl,
+        members);
+  }
+
+  public RepositoryRuntime(
+      long id,
+      String name,
+      RepositoryFormat format,
+      RepositoryType type,
+      String recipeName,
+      boolean online,
+      Long blobStoreId,
+      String writePolicy,
+      String versionPolicy,
+      String layoutPolicy,
+      boolean strictContentTypeValidation,
+      String proxyRemoteUrl,
+      Integer contentMaxAgeMinutes,
+      Integer metadataMaxAgeMinutes,
+      List<RepositoryRuntime> members) {
+    this(
+        id,
+        name,
+        format,
+        type,
+        recipeName,
+        online,
+        blobStoreId,
+        writePolicy,
+        versionPolicy,
+        layoutPolicy,
+        strictContentTypeValidation,
+        proxyRemoteUrl,
+        contentMaxAgeMinutes,
+        metadataMaxAgeMinutes,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        members);
+  }
 
   public boolean isHosted() {
     return type == RepositoryType.HOSTED;
@@ -56,5 +191,9 @@ public record RepositoryRuntime(
     return rawContentDisposition == null || rawContentDisposition.isBlank()
         ? "ATTACHMENT"
         : rawContentDisposition;
+  }
+
+  public boolean dockerConnectorEnabledOrDefault() {
+    return dockerConnectorEnabled == null ? dockerConnectorPort != null : dockerConnectorEnabled;
   }
 }
