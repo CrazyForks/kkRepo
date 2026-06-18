@@ -882,7 +882,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_repository_requests_total{application=\"$application\"}[5m])) by (repo,format,type,method,operation,outcome)",
+          "expr": "sum(rate(kkrepo_repository_requests_total{application=\"$application\"}[5m])) by (repo,format,type,method,operation,outcome)",
           "interval": "",
           "legendFormat": "{{repo}} {{format}}/{{type}} {{method}} {{operation}} {{outcome}}",
           "refId": "A"
@@ -980,7 +980,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nexus_plus_repository_request_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,operation))",
+          "expr": "histogram_quantile(0.95, sum(rate(kkrepo_repository_request_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,operation))",
           "interval": "",
           "legendFormat": "p95 {{repo}} {{method}} {{operation}}",
           "refId": "A"
@@ -989,7 +989,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(nexus_plus_repository_request_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,operation))",
+          "expr": "histogram_quantile(0.99, sum(rate(kkrepo_repository_request_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,operation))",
           "interval": "",
           "legendFormat": "p99 {{repo}} {{method}} {{operation}}",
           "refId": "B"
@@ -1087,7 +1087,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_repository_response_bytes_total{application=\"$application\"}[5m])) by (repo,format,type,method)",
+          "expr": "sum(rate(kkrepo_repository_response_bytes_total{application=\"$application\"}[5m])) by (repo,format,type,method)",
           "interval": "",
           "legendFormat": "{{repo}} {{format}}/{{type}} {{method}}",
           "refId": "A"
@@ -1185,7 +1185,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_repository_upload_bytes_total{application=\"$application\"}[5m])) by (repo,format,type,method)",
+          "expr": "sum(rate(kkrepo_repository_upload_bytes_total{application=\"$application\"}[5m])) by (repo,format,type,method)",
           "interval": "",
           "legendFormat": "{{repo}} {{format}}/{{type}} {{method}}",
           "refId": "A"
@@ -1283,7 +1283,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_proxy_remote_requests_total{application=\"$application\"}[5m])) by (repo,format,method,remote_host,outcome,status)",
+          "expr": "sum(rate(kkrepo_proxy_remote_requests_total{application=\"$application\"}[5m])) by (repo,format,method,remote_host,outcome,status)",
           "interval": "",
           "legendFormat": "{{repo}} {{method}} {{remote_host}} {{status}} {{outcome}}",
           "refId": "A"
@@ -1381,7 +1381,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nexus_plus_proxy_remote_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,remote_host))",
+          "expr": "histogram_quantile(0.95, sum(rate(kkrepo_proxy_remote_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,remote_host))",
           "interval": "",
           "legendFormat": "p95 {{repo}} {{method}} {{remote_host}}",
           "refId": "A"
@@ -1390,7 +1390,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(nexus_plus_proxy_remote_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,remote_host))",
+          "expr": "histogram_quantile(0.99, sum(rate(kkrepo_proxy_remote_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,repo,method,remote_host))",
           "interval": "",
           "legendFormat": "p99 {{repo}} {{method}} {{remote_host}}",
           "refId": "B"
@@ -1488,7 +1488,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_proxy_cache_events_total{application=\"$application\"}[5m])) by (repo,format,type,result)",
+          "expr": "sum(rate(kkrepo_proxy_cache_events_total{application=\"$application\"}[5m])) by (repo,format,type,result)",
           "interval": "",
           "legendFormat": "{{repo}} {{format}}/{{type}} {{result}}",
           "refId": "A"
@@ -1586,7 +1586,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_blob_storage_operations_total{application=\"$application\"}[5m])) by (store,type,engine,op,outcome)",
+          "expr": "sum(rate(kkrepo_blob_storage_operations_total{application=\"$application\"}[5m])) by (store,type,engine,op,outcome)",
           "interval": "",
           "legendFormat": "{{store}} {{type}}/{{engine}} {{op}} {{outcome}}",
           "refId": "A"
@@ -1684,7 +1684,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nexus_plus_blob_storage_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,store,type,engine,op))",
+          "expr": "histogram_quantile(0.95, sum(rate(kkrepo_blob_storage_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,store,type,engine,op))",
           "interval": "",
           "legendFormat": "p95 {{store}} {{op}}",
           "refId": "A"
@@ -1693,7 +1693,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(nexus_plus_blob_storage_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,store,type,engine,op))",
+          "expr": "histogram_quantile(0.99, sum(rate(kkrepo_blob_storage_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,store,type,engine,op))",
           "interval": "",
           "legendFormat": "p99 {{store}} {{op}}",
           "refId": "B"
@@ -1791,7 +1791,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_blob_storage_bytes_total{application=\"$application\"}[5m])) by (store,type,engine,op)",
+          "expr": "sum(rate(kkrepo_blob_storage_bytes_total{application=\"$application\"}[5m])) by (store,type,engine,op)",
           "interval": "",
           "legendFormat": "{{store}} {{type}}/{{engine}} {{op}}",
           "refId": "A"
@@ -1889,7 +1889,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_worker_items_total{application=\"$application\"}[5m])) by (worker,kind,outcome)",
+          "expr": "sum(rate(kkrepo_worker_items_total{application=\"$application\"}[5m])) by (worker,kind,outcome)",
           "interval": "",
           "legendFormat": "{{worker}} {{kind}} {{outcome}}",
           "refId": "A"
@@ -1987,7 +1987,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nexus_plus_worker_item_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,worker,kind,outcome))",
+          "expr": "histogram_quantile(0.95, sum(rate(kkrepo_worker_item_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,worker,kind,outcome))",
           "interval": "",
           "legendFormat": "p95 {{worker}} {{kind}} {{outcome}}",
           "refId": "A"
@@ -2085,7 +2085,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nexus_plus_worker_batch_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,worker,outcome))",
+          "expr": "histogram_quantile(0.95, sum(rate(kkrepo_worker_batch_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,worker,outcome))",
           "interval": "",
           "legendFormat": "p95 {{worker}} {{outcome}}",
           "refId": "A"
@@ -2183,7 +2183,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_metadata_rebuild_backlog{application=\"$application\"}",
+          "expr": "kkrepo_metadata_rebuild_backlog{application=\"$application\"}",
           "interval": "",
           "legendFormat": "metadata backlog",
           "refId": "A"
@@ -2192,7 +2192,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_metadata_rebuild_failures{application=\"$application\"}",
+          "expr": "kkrepo_metadata_rebuild_failures{application=\"$application\"}",
           "interval": "",
           "legendFormat": "metadata failures",
           "refId": "B"
@@ -2201,7 +2201,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_repository_index_rebuild_backlog{application=\"$application\"}",
+          "expr": "kkrepo_repository_index_rebuild_backlog{application=\"$application\"}",
           "interval": "",
           "legendFormat": "index backlog",
           "refId": "C"
@@ -2210,7 +2210,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_repository_index_rebuild_failures{application=\"$application\"}",
+          "expr": "kkrepo_repository_index_rebuild_failures{application=\"$application\"}",
           "interval": "",
           "legendFormat": "index failures",
           "refId": "D"
@@ -2219,7 +2219,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_blob_gc_backlog{application=\"$application\"}",
+          "expr": "kkrepo_blob_gc_backlog{application=\"$application\"}",
           "interval": "",
           "legendFormat": "blob gc backlog",
           "refId": "E"
@@ -2317,7 +2317,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_metadata_rebuild_oldest_age_seconds{application=\"$application\"}",
+          "expr": "kkrepo_metadata_rebuild_oldest_age_seconds{application=\"$application\"}",
           "interval": "",
           "legendFormat": "metadata oldest",
           "refId": "A"
@@ -2326,7 +2326,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_repository_index_rebuild_oldest_age_seconds{application=\"$application\"}",
+          "expr": "kkrepo_repository_index_rebuild_oldest_age_seconds{application=\"$application\"}",
           "interval": "",
           "legendFormat": "index oldest",
           "refId": "B"
@@ -2424,7 +2424,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_blob_gc_reconcile_scanned_total{application=\"$application\"}[5m]))",
+          "expr": "sum(rate(kkrepo_blob_gc_reconcile_scanned_total{application=\"$application\"}[5m]))",
           "interval": "",
           "legendFormat": "scanned rows/s",
           "refId": "A"
@@ -2433,7 +2433,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_blob_gc_reconcile_marked_total{application=\"$application\"}[5m]))",
+          "expr": "sum(rate(kkrepo_blob_gc_reconcile_marked_total{application=\"$application\"}[5m]))",
           "interval": "",
           "legendFormat": "marked blobs/s",
           "refId": "B"
@@ -2531,7 +2531,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_blob_gc_deleted_bytes_total{application=\"$application\"}[5m]))",
+          "expr": "sum(rate(kkrepo_blob_gc_deleted_bytes_total{application=\"$application\"}[5m]))",
           "interval": "",
           "legendFormat": "deleted bytes/s",
           "refId": "A"
@@ -2629,7 +2629,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "nexus_plus_blob_unreferenced_reconcile_cursor{application=\"$application\"}",
+          "expr": "kkrepo_blob_unreferenced_reconcile_cursor{application=\"$application\"}",
           "interval": "",
           "legendFormat": "cursor",
           "refId": "A"
@@ -2727,7 +2727,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_cache_requests_total{application=\"$application\"}[5m])) by (namespace,op,result)",
+          "expr": "sum(rate(kkrepo_cache_requests_total{application=\"$application\"}[5m])) by (namespace,op,result)",
           "interval": "",
           "legendFormat": "{{namespace}} {{op}} {{result}}",
           "refId": "A"
@@ -2825,7 +2825,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nexus_plus_cache_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,namespace,op,result))",
+          "expr": "histogram_quantile(0.95, sum(rate(kkrepo_cache_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,namespace,op,result))",
           "interval": "",
           "legendFormat": "p95 {{namespace}} {{op}} {{result}}",
           "refId": "A"
@@ -2834,7 +2834,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(nexus_plus_cache_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,namespace,op,result))",
+          "expr": "histogram_quantile(0.99, sum(rate(kkrepo_cache_operation_duration_seconds_bucket{application=\"$application\"}[5m])) by (le,namespace,op,result))",
           "interval": "",
           "legendFormat": "p99 {{namespace}} {{op}} {{result}}",
           "refId": "B"
@@ -2932,7 +2932,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_cache_scan_deleted_keys_total{application=\"$application\"}[5m])) by (namespace)",
+          "expr": "sum(rate(kkrepo_cache_scan_deleted_keys_total{application=\"$application\"}[5m])) by (namespace)",
           "interval": "",
           "legendFormat": "{{namespace}}",
           "refId": "A"
@@ -3030,7 +3030,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(nexus_plus_rate_limit_blocked_total{application=\"$application\"}[5m])) by (type)",
+          "expr": "sum(rate(kkrepo_rate_limit_blocked_total{application=\"$application\"}[5m])) by (type)",
           "interval": "",
           "legendFormat": "{{type}}",
           "refId": "A"
@@ -3077,7 +3077,7 @@
           "refId": "Prometheus-BJ-application-Variable-Query"
         },
         "refresh": 1,
-        "regex": "/nexus-plus-*/",
+        "regex": "/kkrepo-*/",
         "regexApplyTo": "value",
         "type": "query"
       }
@@ -3101,7 +3101,7 @@
     ]
   },
   "timezone": "Asia/Shanghai",
-  "title": "nexus-plus",
+  "title": "kkrepo",
   "uid": "chlj9xp",
   "version": 7,
   "weekStart": ""

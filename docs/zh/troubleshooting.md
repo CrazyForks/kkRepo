@@ -7,7 +7,7 @@
 建议在单独本地目录执行 quickstart：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quickstart.sh
+curl -fsSLO https://raw.githubusercontent.com/klboke/kkrepo/main/scripts/quickstart.sh
 bash quickstart.sh
 ```
 
@@ -21,15 +21,15 @@ bash quickstart.sh
 如果端口被占用，可以覆盖端口：
 
 ```bash
-NEXUS_PLUS_HTTP_PORT=19190 NEXUS_PLUS_MANAGEMENT_PORT=19191 bash quickstart.sh
+KKREPO_HTTP_PORT=19190 KKREPO_MANAGEMENT_PORT=19191 bash quickstart.sh
 ```
 
 查看 quickstart 状态：
 
 ```bash
-cd nexus-plus-quickstart
+cd kkrepo-quickstart
 docker compose -f docker-compose.quickstart.yml ps
-docker compose -f docker-compose.quickstart.yml logs -f nexus-plus
+docker compose -f docker-compose.quickstart.yml logs -f kkrepo
 ```
 
 停止试用环境但保留数据：
@@ -64,14 +64,14 @@ curl -i http://127.0.0.1:19091/actuator/health
 
 ```bash
 docker compose -f docker-compose.quickstart.yml logs --tail 200 mysql
-docker compose -f docker-compose.quickstart.yml logs --tail 200 nexus-plus
+docker compose -f docker-compose.quickstart.yml logs --tail 200 kkrepo
 ```
 
 源码方式启动：
 
 ```bash
 mvn -pl server -am -DskipTests package spring-boot:repackage
-java -jar server/target/nexus-plus-server-*.jar
+java -jar server/target/kkrepo-server-*.jar
 ```
 
 ## 无法打开 `/admin/` 或 `/browse/`
@@ -124,21 +124,21 @@ java -jar server/target/nexus-plus-server-*.jar
 检查连通性：
 
 ```bash
-mysql -h127.0.0.1 -P13306 -unexus_plus -pnexus_plus nexus_plus
+mysql -h127.0.0.1 -P13306 -ukkrepo -pkkrepo kkrepo
 ```
 
 源码本地启动时，可以覆盖 datasource：
 
 ```bash
-export SPRING_DATASOURCE_URL='jdbc:mysql://127.0.0.1:3306/nexus_plus?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai'
-export SPRING_DATASOURCE_USERNAME=nexus_plus
-export SPRING_DATASOURCE_PASSWORD=nexus_plus
+export SPRING_DATASOURCE_URL='jdbc:mysql://127.0.0.1:3306/kkrepo?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai'
+export SPRING_DATASOURCE_USERNAME=kkrepo
+export SPRING_DATASOURCE_PASSWORD=kkrepo
 ```
 
 常见原因：
 
 - MySQL 端口和本地默认值不同。
-- 用户没有 `nexus_plus` 数据库权限。
+- 用户没有 `kkrepo` 数据库权限。
 - 数据库字符集不是 `utf8mb4`。
 - 当前环境需要调整 MySQL timezone 或 SSL 参数。
 
@@ -154,7 +154,7 @@ export SPRING_DATASOURCE_PASSWORD=nexus_plus
 
 对于 npm、NuGet、RubyGems 等 token 型客户端，修改用户或 realm 设置后，建议重新生成相关 token 或 API key。
 
-如果问题是 Nexus 兼容差异，提交 issue 时请同时提供 Nexus 和 nexus-plus 对同一请求的响应。
+如果问题是 Nexus 兼容差异，提交 issue 时请同时提供 Nexus 和 kkrepo 对同一请求的响应。
 
 ## 上传失败
 
@@ -197,11 +197,11 @@ export SPRING_DATASOURCE_PASSWORD=nexus_plus
 mvn -pl compat-test -am test
 ```
 
-Live 测试需要同时启动 Nexus 参考实例和 nexus-plus：
+Live 测试需要同时启动 Nexus 参考实例和 kkrepo：
 
 ```bash
-scripts/build-docker-image.sh nexus-plus:compat
-docker compose -f docker-compose.compat.yml up -d mysql nexus nexus-plus
+scripts/build-docker-image.sh kkrepo:compat
+docker compose -f docker-compose.compat.yml up -d mysql nexus kkrepo
 scripts/ci/live-compat-setup.sh
 scripts/ci/run-live-compat.sh smoke
 docker compose -f docker-compose.compat.yml down -v
@@ -211,7 +211,7 @@ docker compose -f docker-compose.compat.yml down -v
 
 - 确认选择的 suite。
 - 检查 Docker Compose 服务健康状态。
-- 查看 `nexus` 和 `nexus-plus` 日志。
+- 查看 `nexus` 和 `kkrepo` 日志。
 - 确认 base URL 和凭据配置正确。
 - 运行写入类 suite 前，确认确实需要启用写测试。
 
@@ -219,7 +219,7 @@ docker compose -f docker-compose.compat.yml down -v
 
 有用信息：
 
-- nexus-plus 版本或 commit。
+- kkrepo 版本或 commit。
 - 部署模式和副本数。
 - 仓库格式和仓库类型。
 - 客户端命令或 HTTP 请求。

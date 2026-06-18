@@ -7,7 +7,7 @@
 target
 **/target/**
 !server/target/
-!server/target/nexus-plus-server-*.jar
+!server/target/kkrepo-server-*.jar
 
 logs
 *.log

@@ -1,4 +1,4 @@
--- nexus-plus initial MySQL schema.
+-- kkrepo initial MySQL schema.
 -- Target database: MySQL 8, InnoDB, utf8mb4.
 -- This file is intentionally only stored as a resource for now. Flyway is not
 -- wired into the server startup yet, so local UI preview does not require a DB.

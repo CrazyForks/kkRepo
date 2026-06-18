@@ -7,7 +7,7 @@ This guide covers common setup, runtime, migration, and compatibility problems. 
 Run the quickstart in a separate local directory:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quickstart.sh
+curl -fsSLO https://raw.githubusercontent.com/klboke/kkrepo/main/scripts/quickstart.sh
 bash quickstart.sh
 ```
 
@@ -21,15 +21,15 @@ Check these basics:
 If ports are in use, override them:
 
 ```bash
-NEXUS_PLUS_HTTP_PORT=19190 NEXUS_PLUS_MANAGEMENT_PORT=19191 bash quickstart.sh
+KKREPO_HTTP_PORT=19190 KKREPO_MANAGEMENT_PORT=19191 bash quickstart.sh
 ```
 
 Inspect quickstart state:
 
 ```bash
-cd nexus-plus-quickstart
+cd kkrepo-quickstart
 docker compose -f docker-compose.quickstart.yml ps
-docker compose -f docker-compose.quickstart.yml logs -f nexus-plus
+docker compose -f docker-compose.quickstart.yml logs -f kkrepo
 ```
 
 Stop the trial without deleting data:
@@ -64,14 +64,14 @@ Useful logs:
 
 ```bash
 docker compose -f docker-compose.quickstart.yml logs --tail 200 mysql
-docker compose -f docker-compose.quickstart.yml logs --tail 200 nexus-plus
+docker compose -f docker-compose.quickstart.yml logs --tail 200 kkrepo
 ```
 
 For source runs:
 
 ```bash
 mvn -pl server -am -DskipTests package spring-boot:repackage
-java -jar server/target/nexus-plus-server-*.jar
+java -jar server/target/kkrepo-server-*.jar
 ```
 
 ## Cannot Open `/admin/` Or `/browse/`
@@ -124,21 +124,21 @@ The service requires MySQL. Core metadata, identities, permissions, sessions, au
 Check connectivity:
 
 ```bash
-mysql -h127.0.0.1 -P13306 -unexus_plus -pnexus_plus nexus_plus
+mysql -h127.0.0.1 -P13306 -ukkrepo -pkkrepo kkrepo
 ```
 
 For source local startup, override the datasource:
 
 ```bash
-export SPRING_DATASOURCE_URL='jdbc:mysql://127.0.0.1:3306/nexus_plus?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai'
-export SPRING_DATASOURCE_USERNAME=nexus_plus
-export SPRING_DATASOURCE_PASSWORD=nexus_plus
+export SPRING_DATASOURCE_URL='jdbc:mysql://127.0.0.1:3306/kkrepo?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai'
+export SPRING_DATASOURCE_USERNAME=kkrepo
+export SPRING_DATASOURCE_PASSWORD=kkrepo
 ```
 
 Common causes:
 
 - MySQL port differs from the local default.
-- User lacks privileges on the `nexus_plus` database.
+- User lacks privileges on the `kkrepo` database.
 - The database character set is not `utf8mb4`.
 - MySQL timezone or SSL parameters need adjustment for your environment.
 
@@ -154,7 +154,7 @@ Check:
 
 For npm, NuGet, RubyGems, and other token-based clients, regenerate the relevant token or API key after changing user or realm settings.
 
-If the issue is a Nexus compatibility difference, include the same request against Nexus and nexus-plus when opening an issue.
+If the issue is a Nexus compatibility difference, include the same request against Nexus and kkrepo when opening an issue.
 
 ## Upload Fails
 
@@ -197,11 +197,11 @@ Default tests do not require a live Nexus instance:
 mvn -pl compat-test -am test
 ```
 
-Live tests need both a Nexus reference and nexus-plus:
+Live tests need both a Nexus reference and kkrepo:
 
 ```bash
-scripts/build-docker-image.sh nexus-plus:compat
-docker compose -f docker-compose.compat.yml up -d mysql nexus nexus-plus
+scripts/build-docker-image.sh kkrepo:compat
+docker compose -f docker-compose.compat.yml up -d mysql nexus kkrepo
 scripts/ci/live-compat-setup.sh
 scripts/ci/run-live-compat.sh smoke
 docker compose -f docker-compose.compat.yml down -v
@@ -211,7 +211,7 @@ If live checks fail:
 
 - Confirm the selected suite.
 - Check Docker Compose service health.
-- Inspect `nexus` and `nexus-plus` logs.
+- Inspect `nexus` and `kkrepo` logs.
 - Verify the configured base URLs and credentials.
 - Make sure write tests are intentionally enabled before running write suites.
 
@@ -219,7 +219,7 @@ If live checks fail:
 
 Helpful information:
 
-- nexus-plus version or commit.
+- kkrepo version or commit.
 - Deployment mode and replica count.
 - Repository format and repository type.
 - Client command or HTTP request.

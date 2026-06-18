@@ -1,12 +1,12 @@
 # Nexus 迁移实战手册
 
-本文是从现有 Nexus 迁移到 nexus-plus 的实战 checklist。它补充 [Nexus 迁移说明](nexus-migration-guide.md)，后者更详细说明产品内迁移流程。
+本文是从现有 Nexus 迁移到 kkrepo 的实战 checklist。它补充 [Nexus 迁移说明](nexus-migration-guide.md)，后者更详细说明产品内迁移流程。
 
 ## 迁移策略
 
 推荐策略：
 
-1. 并行准备 nexus-plus 目标环境。
+1. 并行准备 kkrepo 目标环境。
 2. 执行元数据 preflight。
 3. 迁移元数据。
 4. 同步仓库 metadata。
@@ -41,14 +41,14 @@
 - 哪些用户可能需要迁移后重置密码。
 - 哪些验证客户端代表迁移成功。
 
-## 阶段 1：准备目标 nexus-plus
+## 阶段 1：准备目标 kkrepo
 
-按接近生产的方式部署 nexus-plus：
+按接近生产的方式部署 kkrepo：
 
 - 外部 MySQL。
 - OSS/S3 兼容 blob 存储。
-- 稳定 `NEXUS_PLUS_CREDENTIAL_SECRET`。
-- 稳定 `NEXUS_PLUS_API_KEY_PAYLOAD_SECRET`。
+- 稳定 `KKREPO_CREDENTIAL_SECRET`。
+- 稳定 `KKREPO_API_KEY_PAYLOAD_SECRET`。
 - HTTPS 反向代理。
 - 管理端口监控。
 - MySQL 和 blob storage 备份。
@@ -75,7 +75,7 @@ Script REST API 很重要，因为部分 Nexus 数据无法通过普通 REST API
 
 ## 阶段 3：元数据 Preflight
 
-在 nexus-plus `/admin/`：
+在 kkrepo `/admin/`：
 
 1. 打开 `Nexus Metadata`。
 2. 填写 source URL、username、password 和 source version。
@@ -179,11 +179,11 @@ Script REST API 很重要，因为部分 Nexus 数据无法通过普通 REST API
 - 执行最终增量 `Sync metadata`。
 - 执行最终 `Sync packages`。
 - 确认关键仓库无失败 asset。
-- 直接面向 nexus-plus 验证代表性客户端。
+- 直接面向 kkrepo 验证代表性客户端。
 
 切换方式：
 
-- 将原 Nexus 域名指向 nexus-plus。
+- 将原 Nexus 域名指向 kkrepo。
 - 切换负载均衡 upstream。
 - 如果无法保留域名，则更新客户端配置。
 
@@ -221,19 +221,19 @@ Script REST API 很重要，因为部分 Nexus 数据无法通过普通 REST API
 
 - DNS/负载均衡回滚目标。
 - 回滚窗口内源 Nexus 写入策略。
-- 切换后写入 nexus-plus 的内容是否需要回放到 Nexus。
+- 切换后写入 kkrepo 的内容是否需要回放到 Nexus。
 - 源 Nexus 保留多久。
 - 谁批准回滚。
 
 当切换窗口短，并且源 Nexus 保持不变或只读时，回滚最简单。
 
-如果用户切换后已经向 nexus-plus 发布新包，回滚会变成数据对账问题。开放写入前应决定这是否可接受。
+如果用户切换后已经向 kkrepo 发布新包，回滚会变成数据对账问题。开放写入前应决定这是否可接受。
 
 ## 迁移后清理
 
 回滚窗口结束后：
 
-- 备份 nexus-plus MySQL 和 blob storage。
+- 备份 kkrepo MySQL 和 blob storage。
 - 确认源 Nexus 不再接收流量。
 - 归档源 Nexus 配置和迁移报告。
 - 业务确认后再下线源 Nexus。

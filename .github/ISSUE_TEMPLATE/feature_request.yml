@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a nexus-plus feature or compatibility improvement.
+description: Propose a kkrepo feature or compatibility improvement.
 title: "[Feature]: "
 body:
   - type: textarea

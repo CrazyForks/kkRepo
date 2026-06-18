@@ -20,13 +20,13 @@ Local runtime requires at least MySQL. The blob store can use File blob store. I
 | Dependency | Default |
 | --- | --- |
 | MySQL address | `127.0.0.1:13306` |
-| MySQL database | `nexus_plus` |
-| MySQL username/password | `nexus_plus` / `nexus_plus` |
+| MySQL database | `kkrepo` |
+| MySQL username/password | `kkrepo` / `kkrepo` |
 | File blob store base directory | `blobs` |
 | S3 endpoint | `http://127.0.0.1:9000` |
 | S3 console | `http://127.0.0.1:9001` |
 | S3 access key / secret key | `minioadmin` / `minioadmin` |
-| Development bucket | `nexus-plus` |
+| Development bucket | `kkrepo` |
 
 ### One-Command Docker Dependencies
 
@@ -41,7 +41,7 @@ This starts:
 
 | Service | Image | Local address | Description |
 | --- | --- | --- | --- |
-| MySQL | `mysql:8.0` | `127.0.0.1:13306` | Creates the `nexus_plus` database and `nexus_plus` user automatically |
+| MySQL | `mysql:8.0` | `127.0.0.1:13306` | Creates the `kkrepo` database and `kkrepo` user automatically |
 | RustFS | `rustfs/rustfs:latest` | S3 API: `http://127.0.0.1:9000`; Console: `http://127.0.0.1:9001` | S3-compatible object storage for validating OSS/S3 blob store behavior |
 
 Local data directories:
@@ -51,7 +51,7 @@ Local data directories:
 
 The official RustFS image runs as a non-root user, so mounted host directories must be writable by UID `10001`. The `rustfs-perms` init service in `docker-compose.dev.yml` fixes the directory ownership before RustFS starts.
 
-When you use an S3/OSS blob store for the first time, create the development bucket `nexus-plus` in the RustFS console or with an S3 client.
+When you use an S3/OSS blob store for the first time, create the development bucket `kkrepo` in the RustFS console or with an S3 client.
 
 Stop the dependencies:
 
@@ -65,7 +65,7 @@ This keeps the data under `.local/mysql` and `.local/rustfs/data`. To reset loca
 
 Helper scripts are under `scripts/`. They use the Spring `dev` profile. This profile:
 
-- Binds the service to `NEXUS_PLUS_PORT` when set; otherwise it uses port `18090`
+- Binds the service to `KKREPO_PORT` when set; otherwise it uses port `18090`
 - Uses management port `18091`; `/actuator/health`, `/actuator/metrics`, and `/actuator/prometheus` are exposed from that port
 - Serves static UI resources directly from each module's `src/main/resources/META-INF/resources/`, so HTML/CSS/JS changes are visible after refreshing the browser
 - Enables `spring-boot-devtools` for Java incremental reload
@@ -83,7 +83,7 @@ Common development loop:
 
 ```bash
 ./scripts/dev.sh
-NEXUS_PLUS_PORT=48092 ./scripts/dev.sh
+KKREPO_PORT=48092 ./scripts/dev.sh
 ./scripts/logs.sh
 curl -sS http://127.0.0.1:18091/actuator/health
 ./scripts/recompile.sh
@@ -136,16 +136,16 @@ Package a Spring Boot executable jar:
 
 ```bash
 mvn -pl server -am -DskipTests package spring-boot:repackage
-java -jar server/target/nexus-plus-server-*.jar
+java -jar server/target/kkrepo-server-*.jar
 ```
 
-Note: a normal `server` module jar does not contain a Spring Boot executable entrypoint. Before copying or deploying `server/target/nexus-plus-server-*.jar`, run `spring-boot:repackage`.
+Note: a normal `server` module jar does not contain a Spring Boot executable entrypoint. Before copying or deploying `server/target/kkrepo-server-*.jar`, run `spring-boot:repackage`.
 
 Docker images, archive artifacts, and production deployment are documented in the [Build And Deployment Guide](build-deployment-guide.md).
 
 ## Compatibility Testing
 
-Protocol features must align with official protocol behavior and Nexus behavior first. When adding or changing protocol behavior, add or update black-box compatibility tests under `compat-test` against a Nexus reference instance before implementing the minimal compatible behavior in nexus-plus.
+Protocol features must align with official protocol behavior and Nexus behavior first. When adding or changing protocol behavior, add or update black-box compatibility tests under `compat-test` against a Nexus reference instance before implementing the minimal compatible behavior in kkrepo.
 
 Default compatibility tests:
 
@@ -153,7 +153,7 @@ Default compatibility tests:
 mvn -pl compat-test -am test
 ```
 
-Live black-box tests are skipped by default and require explicit Nexus reference and nexus-plus URLs. Commands are documented in [compat-test/README.md](../../compat-test/README.md).
+Live black-box tests are skipped by default and require explicit Nexus reference and kkrepo URLs. Commands are documented in [compat-test/README.md](../../compat-test/README.md).
 
 ## Configuration Center
 
@@ -162,8 +162,8 @@ The service integrates Apollo ConfigData, but Apollo is not enabled by default w
 Production or integration environments can specify Apollo meta through runtime parameters:
 
 ```bash
-NEXUS_PLUS_APOLLO_META=http://apollo-config:8080 java -jar server/target/nexus-plus-server-*.jar
-java -Dapollo.meta=http://apollo-config:8080 -jar server/target/nexus-plus-server-*.jar
+KKREPO_APOLLO_META=http://apollo-config:8080 java -jar server/target/kkrepo-server-*.jar
+java -Dapollo.meta=http://apollo-config:8080 -jar server/target/kkrepo-server-*.jar
 ```
 
 ## Implementation Constraints

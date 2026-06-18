@@ -1,4 +1,4 @@
--- nexus-plus V2: Maven runtime tables and indexes.
+-- kkrepo V2: Maven runtime tables and indexes.
 -- Adds DB-backed circuit breaker for proxy repositories and a queue marker
 -- for metadata rebuilds. Round 1 rebuilds inline; the marker is reserved for
 -- a future async rebuilder.

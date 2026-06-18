@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible nexus-plus bug.
+description: Report a reproducible kkrepo bug.
 title: "[Bug]: "
 body:
   - type: markdown
@@ -60,7 +60,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: nexus-plus version or commit
+      label: kkrepo version or commit
       placeholder: main, tag, or commit SHA
     validations:
       required: true
