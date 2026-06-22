@@ -2,18 +2,18 @@ FROM eclipse-temurin:25-jre-jammy
 
 WORKDIR /app
 
-ARG JAR_FILE=server/target/nexus-plus-server-0.1.0.jar
+ARG JAR_FILE=server/target/kkrepo-server-0.1.0.jar
 
-RUN groupadd --system nexusplus \
-    && useradd --system --gid nexusplus --home-dir /app --shell /usr/sbin/nologin nexusplus
+RUN groupadd --system kkrepo \
+    && useradd --system --gid kkrepo --home-dir /app --shell /usr/sbin/nologin kkrepo
 
-COPY ${JAR_FILE} /app/nexus-plus.jar
+COPY ${JAR_FILE} /app/kkrepo.jar
 
 ENV JAVA_OPTS="" \
     SPRING_PROFILES_ACTIVE=default
 
 EXPOSE 8080 8081
 
-USER nexusplus
+USER kkrepo
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/nexus-plus.jar \"$@\"", "--"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/kkrepo.jar \"$@\"", "--"]

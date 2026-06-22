@@ -1,4 +1,4 @@
-# nexus-plus compat-test
+# kkrepo compat-test
 
 `compat-test` contains compatibility checks that can run in three modes:
 
@@ -32,13 +32,13 @@ builds without Nexus.
 ## Disposable Live Compatibility Environment
 
 The GitHub `Live Compatibility` workflow uses the same commands below. It builds a candidate
-nexus-plus image, starts MySQL, a disposable Nexus reference, and the candidate service, then
+kkrepo image, starts MySQL, a disposable Nexus reference, and the candidate service, then
 bootstraps the admin user, default file blob store, and Maven/npm fixture repositories.
-The disposable defaults are `admin` / `123456` for Nexus and `admin` / `12345678` for nexus-plus.
+The disposable defaults are `admin` / `123456` for Nexus and `admin` / `12345678` for kkrepo.
 
 ```bash
-scripts/build-docker-image.sh nexus-plus:compat
-docker compose -f docker-compose.compat.yml up -d mysql nexus nexus-plus
+scripts/build-docker-image.sh kkrepo:compat
+docker compose -f docker-compose.compat.yml up -d mysql nexus kkrepo
 scripts/ci/live-compat-setup.sh
 scripts/ci/run-live-compat.sh smoke
 docker compose -f docker-compose.compat.yml down -v
@@ -57,13 +57,13 @@ workflow manually and select a suite.
 
 ## Live Console And Maven Read Checks
 
-Start nexus-plus locally first:
+Start kkrepo locally first:
 
 ```bash
 scripts/restart.sh
 ```
 
-Then run the live checks against a running Nexus reference and nexus-plus:
+Then run the live checks against a running Nexus reference and kkrepo:
 
 ```bash
 mvn -pl compat-test -am \
@@ -73,13 +73,13 @@ mvn -pl compat-test -am \
   -Dcompat.nexusPlus.baseUrl=http://127.0.0.1:18090 \
   -Dcompat.nexus.readRepository=maven-public \
   -Dcompat.nexusPlus.readRepository=maven-public \
-  -Dtest=NexusPlusConsoleBlackBoxCompatibilityTest,MavenRepositoryBlackBoxCompatibilityTest#proxyReadRoundTripMatchesNexusWhenConfigured \
+  -Dtest=KkRepoConsoleBlackBoxCompatibilityTest,MavenRepositoryBlackBoxCompatibilityTest#proxyReadRoundTripMatchesNexusWhenConfigured \
   test
 ```
 
 ## Live Security Admin Compatibility
 
-The security admin checks compare Nexus `#admin/security` ExtDirect contracts against nexus-plus.
+The security admin checks compare Nexus `#admin/security` ExtDirect contracts against kkrepo.
 They are disabled by default and use the fixed Docker Nexus reference endpoint.
 
 ```bash
@@ -87,9 +87,9 @@ COMPAT_SECURITY_ENABLED=true \
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 NEXUS_COMPAT_USERNAME=admin \
 NEXUS_COMPAT_PASSWORD=123456 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
-NEXUS_PLUS_COMPAT_USERNAME=admin \
-NEXUS_PLUS_COMPAT_PASSWORD=admin123 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_USERNAME=admin \
+KKREPO_COMPAT_PASSWORD=admin123 \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
   -Dsurefire.failIfNoSpecifiedTests=false \
@@ -102,11 +102,11 @@ privilege rows, privilege form store APIs, repository reference rows including `
 supported realm type names, a temporary non-admin repository-view role/user, and a temporary
 non-admin repository-content-selector role/user. The non-admin checks prove repository root and REST
 browse access for `maven-public`, security-management denial for
-`/service/rest/v1/security/users`, nexus-plus upload repository filtering when the user lacks
+`/service/rest/v1/security/users`, kkrepo upload repository filtering when the user lacks
 `nexus:component:create`, and content-selector allow/deny status parity for selected Maven asset
 paths. NuGet API key UI endpoints are intentionally not covered by this security suite; repository
 protocol compatibility for NuGet, RubyGems, and Yum is covered separately from the security-admin
-checks. The nexus-plus password above is only the local dev admin used for compatibility validation;
+checks. The kkrepo password above is only the local dev admin used for compatibility validation;
 migrated environments should use their migrated admin credential.
 
 Realm protocol behavior is covered in the server test suite rather than the live Nexus comparison:
@@ -118,7 +118,7 @@ use their own token/session entry points instead of the Basic realm order.
 ## Live NuGet, RubyGems, And Yum Checks
 
 The NuGet, RubyGems, and Yum repository checks compare the fixed Nexus reference endpoint above
-with the local nexus-plus dev server. The default credentials for both sides are `admin` / `123456`.
+with the local kkrepo dev server. The default credentials for both sides are `admin` / `123456`.
 
 ```bash
 mvn -pl compat-test -am \
@@ -137,7 +137,7 @@ mvn -pl compat-test -am \
 Hosted NuGet multipart push and Yum RPM PUT are opt-in because they write packages into the
 comparison repositories. To target the Browse repository from local dev, set
 `COMPAT_YUM_HOSTED_REPOSITORY=yum-compat-hosted`; the Yum test uploads under
-`Packages/nexus-plus-compat-yum-<timestamp>/`.
+`Packages/kkrepo-compat-yum-<timestamp>/`.
 
 ```bash
 COMPAT_WRITE_ENABLED=true \
@@ -162,7 +162,7 @@ Maven command line:
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 NEXUS_COMPAT_USERNAME=admin \
 NEXUS_COMPAT_PASSWORD=123456 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
 COMPAT_WRITE_ENABLED=true \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
@@ -216,7 +216,7 @@ Run the PyPI suite against the fixed reference Nexus:
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 NEXUS_COMPAT_USERNAME=admin \
 NEXUS_COMPAT_PASSWORD=123456 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
   -Dsurefire.failIfNoSpecifiedTests=false \
@@ -241,14 +241,14 @@ Defaults:
 
 - `NEXUS_HOME=/private/tmp/nexus-3292-source/nexus-base-template-3.29.2-02`
 - reference Nexus port: `58083`
-- nexus-plus URL: `http://127.0.0.1:18090`
-- disposable data dir: a new `/private/tmp/nexus-plus-compat-nexus.*` directory
+- kkrepo URL: `http://127.0.0.1:18090`
+- disposable data dir: a new `/private/tmp/kkrepo-compat-nexus.*` directory
 
 Override with:
 
 ```bash
 NEXUS_COMPAT_PORT=58084 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
 compat-test/run-local-write-compat.sh
 ```
 
@@ -259,7 +259,7 @@ paths.
 
 ```bash
 COMPAT_PERF_ENABLED=true \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
@@ -279,19 +279,19 @@ Useful thresholds:
 
 ## Go Proxy And Group Compatibility
 
-The Go black-box test compares nexus-plus against Nexus Go proxy and group repositories. By default
-it targets the local Nexus at `http://localhost:28090` with `admin` / `123456`, and nexus-plus at
-`http://127.0.0.1:18090`. Override `GO_NEXUS_PLUS_COMPAT_BASE_URL` when testing a non-default
-nexus-plus port.
+The Go black-box test compares kkrepo against Nexus Go proxy and group repositories. By default
+it targets the local Nexus at `http://localhost:28090` with `admin` / `123456`, and kkrepo at
+`http://127.0.0.1:18090`. Override `GO_KKREPO_COMPAT_BASE_URL` when testing a non-default
+kkrepo port.
 
-Because the test creates or updates nexus-plus repositories during setup, provide
-`GO_NEXUS_PLUS_COMPAT_USERNAME` and `GO_NEXUS_PLUS_COMPAT_PASSWORD` when repository management
+Because the test creates or updates kkrepo repositories during setup, provide
+`GO_KKREPO_COMPAT_USERNAME` and `GO_KKREPO_COMPAT_PASSWORD` when repository management
 security is enabled. Without those credentials the setup-oriented Go test is skipped.
 
 ```bash
-GO_NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:48092 \
-GO_NEXUS_PLUS_COMPAT_USERNAME=admin \
-GO_NEXUS_PLUS_COMPAT_PASSWORD=... \
+GO_KKREPO_COMPAT_BASE_URL=http://127.0.0.1:48092 \
+GO_KKREPO_COMPAT_USERNAME=admin \
+GO_KKREPO_COMPAT_PASSWORD=... \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
   -Dsurefire.failIfNoSpecifiedTests=false \
@@ -301,7 +301,7 @@ mvn -pl compat-test -am \
 
 The test creates/updates `go-proxy-compat`, `go-group-compat-miss`,
 `go-group-compat-hit`, and `go-group-compat` on both sides. Override with
-`GO_NEXUS_COMPAT_BASE_URL`, `GO_NEXUS_PLUS_COMPAT_BASE_URL`,
+`GO_NEXUS_COMPAT_BASE_URL`, `GO_KKREPO_COMPAT_BASE_URL`,
 `GO_NEXUS_COMPAT_PASSWORD`, `GO_GROUP_COMPAT_REPOSITORY`, and related
 `GO_GROUP_COMPAT_*` settings when needed.
 
@@ -315,7 +315,7 @@ delete cleanup, plus proxy `index.yaml` URL rewriting and proxied chart download
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 NEXUS_COMPAT_USERNAME=admin \
 NEXUS_COMPAT_PASSWORD=123456 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
   -Dsurefire.failIfNoSpecifiedTests=false \
@@ -337,7 +337,7 @@ first-match reads, and proxy file download/`HEAD` against a static upstream.
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 NEXUS_COMPAT_USERNAME=admin \
 NEXUS_COMPAT_PASSWORD=123456 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
   -Dsurefire.failIfNoSpecifiedTests=false \

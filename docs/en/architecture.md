@@ -1,8 +1,8 @@
 # Architecture
 
-nexus-plus is a Nexus-compatible artifact repository built around a MySQL-first metadata model, OSS/S3-first blob storage, and multi-replica-safe runtime behavior.
+kkrepo is a Nexus-compatible artifact repository built around a MySQL-first metadata model, OSS/S3-first blob storage, and multi-replica-safe runtime behavior.
 
-The goal is not to copy Nexus internals. nexus-plus keeps client-visible protocol behavior, permissions, and `/repository/<repo>/...` URLs compatible while avoiding OrientDB, embedded Elasticsearch, Karaf, OSGi, and local-only blob state as production requirements.
+The goal is not to copy Nexus internals. kkrepo keeps client-visible protocol behavior, permissions, and `/repository/<repo>/...` URLs compatible while avoiding OrientDB, embedded Elasticsearch, Karaf, OSGi, and local-only blob state as production requirements.
 
 ## High-Level Topology
 
@@ -14,7 +14,7 @@ Artifact clients
 Load balancer / reverse proxy
         |
         v
-nexus-plus replicas
+kkrepo replicas
   server
   protocol modules
   admin-ui / browse-ui static assets
@@ -114,7 +114,7 @@ Blob metadata and object references should be transactionally visible only after
 
 ## Multi-Replica Model
 
-nexus-plus assumes multiple application replicas by default:
+kkrepo assumes multiple application replicas by default:
 
 - HTTP sessions use Spring Session JDBC.
 - Authentication tickets live in MySQL and expire quickly.
@@ -138,7 +138,7 @@ The default cache backend is in-process memory. Caches are used for performance,
 - Security authorization cache.
 - Catalog snapshots for repository/security/blob-store metadata.
 
-Cache invalidation relies on TTLs and MySQL version watermarks. Operators can tune cache sizes and TTLs with `NEXUS_PLUS_*` environment variables.
+Cache invalidation relies on TTLs and MySQL version watermarks. Operators can tune cache sizes and TTLs with `KKREPO_*` environment variables.
 
 ## Security Architecture
 
@@ -177,7 +177,7 @@ Repository traffic metrics are labeled by repository, format, method, status, an
 
 ## What Is Not Copied From Nexus
 
-nexus-plus intentionally avoids copying these Nexus internals unless a user-visible compatibility need requires an adapter:
+kkrepo intentionally avoids copying these Nexus internals unless a user-visible compatibility need requires an adapter:
 
 - OrientDB.
 - Embedded Elasticsearch.

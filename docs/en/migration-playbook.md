@@ -1,12 +1,12 @@
 # Nexus Migration Playbook
 
-This playbook is a practical checklist for moving from an existing Nexus instance to nexus-plus. It complements the [Nexus Migration Guide](nexus-migration-guide.md), which documents the product flow in more detail.
+This playbook is a practical checklist for moving from an existing Nexus instance to kkrepo. It complements the [Nexus Migration Guide](nexus-migration-guide.md), which documents the product flow in more detail.
 
 ## Migration Strategy
 
 Recommended strategy:
 
-1. Prepare nexus-plus in parallel with the source Nexus.
+1. Prepare kkrepo in parallel with the source Nexus.
 2. Run metadata preflight.
 3. Migrate metadata.
 4. Sync repository metadata.
@@ -41,14 +41,14 @@ Decide:
 - Which users may need password reset after migration.
 - Which validation clients represent success.
 
-## Phase 1: Prepare Target nexus-plus
+## Phase 1: Prepare Target kkrepo
 
-Set up nexus-plus with production-like settings:
+Set up kkrepo with production-like settings:
 
 - External MySQL.
 - OSS/S3-compatible blob storage.
-- Stable `NEXUS_PLUS_CREDENTIAL_SECRET`.
-- Stable `NEXUS_PLUS_API_KEY_PAYLOAD_SECRET`.
+- Stable `KKREPO_CREDENTIAL_SECRET`.
+- Stable `KKREPO_API_KEY_PAYLOAD_SECRET`.
 - HTTPS reverse proxy.
 - Monitoring on the management port.
 - Backups for MySQL and blob storage.
@@ -75,7 +75,7 @@ Script REST API is important because some Nexus data is not available through re
 
 ## Phase 3: Metadata Preflight
 
-In nexus-plus `/admin/`:
+In kkrepo `/admin/`:
 
 1. Open `Nexus Metadata`.
 2. Fill in source URL, username, password, and source version.
@@ -179,11 +179,11 @@ Before cutover:
 - Run a final incremental `Sync metadata`.
 - Run a final `Sync packages`.
 - Verify no failed assets remain for critical repositories.
-- Verify representative clients against nexus-plus directly.
+- Verify representative clients against kkrepo directly.
 
 Cutover options:
 
-- Move the original Nexus domain to nexus-plus.
+- Move the original Nexus domain to kkrepo.
 - Change load balancer upstreams.
 - Update client config if domain preservation is not possible.
 
@@ -221,19 +221,19 @@ Define rollback before cutover:
 
 - DNS/load-balancer rollback target.
 - Source Nexus write policy during rollback window.
-- Whether writes to nexus-plus after cutover must be replayed to Nexus.
+- Whether writes to kkrepo after cutover must be replayed to Nexus.
 - How long source Nexus remains available.
 - Who approves rollback.
 
 Simple rollback is easiest when the cutover window is short and source Nexus remains unchanged or read-only.
 
-If users publish new packages to nexus-plus after cutover, rollback becomes a data reconciliation problem. Decide whether that is acceptable before opening writes.
+If users publish new packages to kkrepo after cutover, rollback becomes a data reconciliation problem. Decide whether that is acceptable before opening writes.
 
 ## Post-Migration Cleanup
 
 After the rollback window:
 
-- Back up nexus-plus MySQL and blob storage.
+- Back up kkrepo MySQL and blob storage.
 - Confirm source Nexus is no longer receiving traffic.
 - Archive source Nexus configuration and migration reports.
 - Decommission source Nexus only after business sign-off.

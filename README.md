@@ -1,32 +1,36 @@
-# nexus-plus
+# kkRepo
 
-[![CI](https://github.com/klboke/nexus-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/klboke/nexus-plus/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/klboke/nexus-plus)](https://github.com/klboke/nexus-plus/releases)
-[![License](https://img.shields.io/github/license/klboke/nexus-plus)](LICENSE)
-[![Container](https://img.shields.io/badge/ghcr.io-nexus--plus-blue)](https://github.com/klboke/nexus-plus/pkgs/container/nexus-plus)
+[![CI](https://github.com/klboke/kkrepo/actions/workflows/ci.yml/badge.svg)](https://github.com/klboke/kkrepo/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/klboke/kkrepo)](https://github.com/klboke/kkrepo/releases)
+[![License](https://img.shields.io/github/license/klboke/kkrepo)](LICENSE)
+[![Container](https://img.shields.io/badge/ghcr.io-kkrepo-blue)](https://github.com/klboke/kkrepo/pkgs/container/kkrepo)
 [![Security Policy](https://img.shields.io/badge/security-policy-green)](SECURITY.md)
 
 [Chinese version](README.cn.md)
 
-`nexus-plus` is a Nexus-compatible, self-hosted artifact repository for Maven, npm, PyPI, Go, Helm, NuGet, RubyGems, Yum, and Raw artifacts.
+kkRepo is an independent, self-hosted artifact repository for Maven, npm, PyPI, Go, Helm, NuGet, RubyGems, Yum, and Raw artifacts.
 
-The project keeps Nexus-compatible client protocols, the Nexus permission/authentication model, and the `/repository/<repo>/...` URL layout while addressing stability, external database support, multi-replica deployment, and usage-limit issues found in Nexus Repository OSS / Community Edition. It also supports smooth migration from an existing Nexus instance to nexus-plus.
+The project implements client-visible compatibility and migration support for Sonatype Nexus Repository deployments, including the `/repository/<repo>/...` URL layout and compatible permission/authentication behavior where required for migration. kkRepo uses MySQL for metadata and shared runtime state, supports OSS/S3 blob storage, and is designed for multi-replica deployment.
 
 - Java and Spring Boot based service
 - MySQL metadata and identity data
 - MySQL-coordinated runtime state plus in-process TTL cache
 - OSS/S3/File blob storage
-- Nexus-compatible `/repository/<repo>/...` protocol entrypoint and permission model
-- One-click migration tooling for existing Nexus instances, with zero-downtime migration to nexus-plus
+- `/repository/<repo>/...` protocol entrypoint and compatible permission model for migration scenarios
+- One-click migration tooling for existing Sonatype Nexus Repository instances, with zero-downtime migration to kkRepo
 - Lightweight operations console under `/admin/`
 - User-facing repository browser under `/browse/`
+
+## Trademark Notice
+
+Sonatype, Nexus, and Nexus Repository are trademarks of Sonatype, Inc. kkRepo is an independent open source project and is not affiliated with, endorsed by, sponsored by, or connected to Sonatype, Inc. References to Sonatype Nexus Repository are used only to describe compatibility, migration, or interoperability.
 
 ## Quick Start
 
 Start a local trial environment with the public release image and MySQL:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quickstart.sh | bash
+curl -fsSL https://raw.githubusercontent.com/klboke/kkrepo/main/scripts/quickstart.sh | bash
 ```
 
 Open:
@@ -59,25 +63,25 @@ Local hot-reload development and testing are documented in the [Development Guid
 | Yum | hosted / proxy / group | RPM upload and admin UI upload | repodata supported | Hosted repositories are migrated by default; proxy repositories can be migrated optionally |
 | Raw | hosted / proxy / group | PUT upload and admin UI upload | Supported | Hosted repositories are migrated by default; proxy repositories can be migrated optionally |
 
-Nexus Repository Data migration scans hosted repositories by default. If you need to migrate proxy repositories from the source Nexus as historical backup data or upstream cache data, explicitly specify repository names in `Optional proxy repositories` on the migration page.
+Repository data migration scans hosted repositories by default. If you need to migrate proxy repositories from a source Sonatype Nexus Repository deployment as historical backup data or upstream cache data, explicitly specify repository names in `Optional proxy repositories` on the migration page.
 
-## Migrating From Nexus
+## Migrating From Sonatype Nexus Repository
 
 Migration is available in the `/admin/` console:
 
-1. Enable Script REST API script creation on the source Nexus.
+1. Enable Script REST API script creation on the source Sonatype Nexus Repository deployment.
 2. On the `Nexus Metadata` page, run `Run preflight` first, then run `Run migration` after blocking issues are resolved.
 3. On the `Nexus Repository Data` page, run `Sync metadata` to migrate repository metadata, then run `Sync packages` to migrate the real blob data.
 4. For the first repository data migration, leave `Metadata since` empty to scan all data. Later runs can set `Metadata since` for incremental migration.
-5. After migration is complete, point the original Nexus domain to nexus-plus. Client configuration does not need to change.
+5. After migration is complete, point the original repository domain to kkRepo. Client configuration does not need to change.
 
 Migration supports interruption and resume. Completed data is skipped on later runs. See the [Nexus Migration Guide](docs/en/nexus-migration-guide.md) for the full process.
 
-## Comparison With Open Source Nexus
+## Compatibility And Migration Context
 
-| Dimension | Nexus Repository OSS / Community Edition | nexus-plus |
+| Dimension | Sonatype Nexus Repository OSS / Community Edition | kkRepo |
 | --- | --- | --- |
-| Product positioning | A general-purpose artifact repository management platform with broad format and management coverage | Keeps Nexus client behavior, permission model, and `/repository/<repo>/...` URL layout compatible while addressing OSS embedded database stability issues, Community Edition usage limits, limited horizontal scaling in open source editions, and providing zero-downtime migration to nexus-plus |
+| Product positioning | A general-purpose artifact repository management platform with broad format and management coverage | Provides migration-oriented client behavior, permission model, and `/repository/<repo>/...` URL compatibility while using a MySQL-first, OSS/S3-first, multi-replica-friendly architecture |
 | Supported formats | Officially supports more formats; exact capabilities vary by version and distribution | Focuses on common artifact formats. Currently supports Maven, npm, PyPI, Go, Helm, NuGet, RubyGems, Yum, and Raw. Each format is implemented as an independent protocol module for prioritized extension and validation |
 | Usage limits | Community Edition targets individuals and small teams. Official limits are up to 40,000 components and 100,000 requests/day. When exceeded, new component creation is paused until usage returns below the limits | Does not include Community Edition-style license usage limits. Capacity is bounded by MySQL, OSS/S3, replica count, and deployment sizing, so it can scale with actual business needs |
 | High availability deployment | Open source editions are suitable for a single instance or basic Kubernetes deployment; official HA deployment is a Pro capability | Designed for multi-replica deployment by default: session, authentication tickets, catalog watermarks, locks, migration progress, and short-lived coordination state are stored in MySQL. In-process cache is only a rebuildable hot cache |
@@ -85,13 +89,13 @@ Migration supports interruption and resume. Completed data is skipped on later r
 | Metadata storage | Historical versions moved across OrientDB, H2, PostgreSQL, and related migration paths. Older instances must handle database migration constraints during upgrade | MySQL-first: repositories, components, assets, permissions, tokens, audit logs, migration state, and rebuildable indexes use explicit table structures for easier troubleshooting, governance, and horizontal scaling |
 | Blob storage | Common deployments use local file blob store; object storage availability depends on version and configuration | OSS/S3-first, with File blob store retained for development and testing. MySQL stores only metadata, state, indexes, and references, not large blobs |
 | Search and indexing | Before 3.88.0, Nexus search and indexing were based on embedded Elasticsearch, with index files and database state separated. Index corruption or inconsistency requires Nexus repair/rebuild tasks | Uses MySQL denormalized indexes and protocol-derived metadata. browse/search/index data is designed to be rebuildable, and node-local cache loss does not affect correctness |
-| Architecture complexity | Nexus is feature-rich and carries many general management capabilities and historical architecture mechanisms | nexus-plus keeps the architecture simple and focuses on repository management and client protocol implementation |
+| Architecture complexity | Nexus Repository is feature-rich and carries many general management capabilities and historical architecture mechanisms | kkRepo keeps the architecture simple and focuses on repository management and client protocol implementation |
 
 ## Selection Guidance
 
-- If your business scale is very small, package count and traffic are within Community Edition limits, and occasional maintenance downtime is acceptable, prefer the open source Nexus version.
-- If stability, scalability, and multi-replica deployment matter, or if you manage a large number of packages, use nexus-plus.
-- If an existing Nexus instance runs into component-count or daily-request limits after upgrading to a newer Community Edition version, you can use the nexus-plus one-click migration capability to migrate to nexus-plus with zero downtime.
+- If your business scale is very small, package count and traffic are within Community Edition limits, and occasional maintenance downtime is acceptable, the open source Sonatype Nexus Repository edition may be sufficient.
+- If stability, scalability, and multi-replica deployment matter, or if you manage a large number of packages, kkRepo is designed for that deployment shape.
+- If an existing Sonatype Nexus Repository instance runs into component-count or daily-request limits after upgrading to a newer Community Edition version, kkRepo provides a one-click migration flow designed for zero-downtime migration.
 
 ## UI Overview
 
@@ -117,7 +121,7 @@ The upload page lets users select a repository, upload files, and set asset path
 
 ### Admin UI
 
-The admin UI is for repository administrators and focuses on repository configuration, storage health, security configuration, audit, and Nexus migration.
+The admin UI is for repository administrators and focuses on repository configuration, storage health, security configuration, audit, and migration.
 
 The Blob Store page supports OSS Native SDK, AWS S3 SDK, and File engines, and shows read/write probe health.
 
@@ -161,7 +165,7 @@ Local development and testing are documented in the [Development Guide](docs/en/
 
 ## Support
 
-Join the [nexus-plus Telegram group](https://t.me/+M6prtFUGnF9kYTU1) for community support and usage discussion. See [SUPPORT.md](SUPPORT.md) for issue routing, support scope, and security-reporting boundaries.
+Join the [kkRepo Telegram group](https://t.me/+M6prtFUGnF9kYTU1) for community support and usage discussion. See [SUPPORT.md](SUPPORT.md) for issue routing, support scope, and security-reporting boundaries.
 
 ## Security
 
@@ -169,7 +173,7 @@ If you find a security issue, follow [SECURITY.md](SECURITY.md) and report it th
 
 ## License
 
-nexus-plus is open sourced under the [Apache License 2.0](LICENSE).
+kkRepo is open sourced under the [Apache License 2.0](LICENSE).
 
 ## Documentation
 
@@ -188,5 +192,5 @@ nexus-plus is open sourced under the [Apache License 2.0](LICENSE).
 - [Monitoring And Observability Guide](docs/en/monitoring-observability-guide.md)
 - [Nexus Compatibility Testing](docs/en/nexus-compatibility-testing.md)
 - [FAQ](docs/en/faq.md)
-- [Why We Built nexus-plus To Replace Nexus](docs/en/why-nexus-plus.md)
+- [Why We Built kkRepo](docs/en/why-kkrepo.md)
 - [Changelog](CHANGELOG.md)

@@ -1,6 +1,6 @@
 # Docker 仓库实现调研与开发计划
 
-本文面向 nexus-plus 新增 Docker/OCI 仓库格式的开发规划。目标不是重新发明镜像仓库协议，而是在 Nexus Docker 仓库行为、Docker Registry HTTP API V2 和 OCI Distribution 规范之间取兼容交集，并按 nexus-plus 的 MySQL + OSS/S3 + 多副本约束落地。
+本文面向 kkrepo 新增 Docker/OCI 仓库格式的开发规划。目标不是重新发明镜像仓库协议，而是在 Nexus Docker 仓库行为、Docker Registry HTTP API V2 和 OCI Distribution 规范之间取兼容交集，并按 kkrepo 的 MySQL + OSS/S3 + 多副本约束落地。
 
 ## 调研基线
 
@@ -14,11 +14,11 @@
 
 关键结论：
 
-- Docker 客户端并不按普通制品仓库的 `/repository/<repo>/...` 形态访问。Nexus 的 path-based routing 使用镜像名第一段作为仓库名，例如 `docker pull nexus.example/docker-group/library/alpine:latest`，对应 registry API 路径形态是 `/v2/docker-group/library/alpine/manifests/latest`。因此 nexus-plus 需要新增 Docker 专用 `/v2/...` 路由，并把第一段解析为 nexus-plus 仓库名。
+- Docker 客户端并不按普通制品仓库的 `/repository/<repo>/...` 形态访问。Nexus 的 path-based routing 使用镜像名第一段作为仓库名，例如 `docker pull nexus.example/docker-group/library/alpine:latest`，对应 registry API 路径形态是 `/v2/docker-group/library/alpine/manifests/latest`。因此 kkrepo 需要新增 Docker 专用 `/v2/...` 路由，并把第一段解析为 kkrepo 仓库名。
 - Docker pull 的最小可用面是 `/v2/`、manifest GET/HEAD、blob GET/HEAD、tag list 和认证 challenge。Docker push 必须支持 blob upload session，实际客户端常用 `POST /blobs/uploads/` + `PATCH` + `PUT ?digest=...`，不能只做单次 PUT。
 - Docker/OCI 是内容寻址模型。blob、manifest digest 必须由服务端按原始字节计算，不能重排 JSON、改写 timestamp 或规范化 body 后再算 digest。
 - OCI referrers 已经成为镜像签名、SBOM、attestation 等场景的关键能力，第一阶段可以不阻塞普通 `docker pull/push`，但数据模型应一次性预留 subject/referrers 索引。
-- Nexus Docker 既支持 path-based routing，也支持 port connectors。nexus-plus 第一阶段应保留独立 Docker 流量端口，避免大镜像层上传/下载挤占主服务端口、管理 UI、REST API 和普通制品协议请求；该端口内仍优先使用 path-based routing 解析仓库。Nexus 式“每个仓库配置一个 connector 端口”可以作为后续兼容增强。
+- Nexus Docker 既支持 path-based routing，也支持 port connectors。kkrepo 第一阶段应保留独立 Docker 流量端口，避免大镜像层上传/下载挤占主服务端口、管理 UI、REST API 和普通制品协议请求；该端口内仍优先使用 path-based routing 解析仓库。Nexus 式“每个仓库配置一个 connector 端口”可以作为后续兼容增强。
 
 ## 功能范围
 
@@ -83,15 +83,15 @@ Docker 镜像层通常远大于 Maven/npm/PyPI 等包，请求连接持续时间
 
 配置建议预留：
 
-- `nexus-plus.docker.connector.enabled=true`
-- `nexus-plus.docker.connector.port=8082`
-- `nexus-plus.docker.connector.threads.max`
-- `nexus-plus.docker.connector.max-connections`
-- `nexus-plus.docker.connector.accept-count`
-- `nexus-plus.docker.connector.connection-timeout`
-- `nexus-plus.docker.transfer.max-concurrent-uploads`
-- `nexus-plus.docker.transfer.max-concurrent-downloads`
-- `nexus-plus.docker.transfer.response-buffer-size`
+- `kkrepo.docker.connector.enabled=true`
+- `kkrepo.docker.connector.port=8082`
+- `kkrepo.docker.connector.threads.max`
+- `kkrepo.docker.connector.max-connections`
+- `kkrepo.docker.connector.accept-count`
+- `kkrepo.docker.connector.connection-timeout`
+- `kkrepo.docker.transfer.max-concurrent-uploads`
+- `kkrepo.docker.transfer.max-concurrent-downloads`
+- `kkrepo.docker.transfer.response-buffer-size`
 
 路由策略：
 
@@ -104,7 +104,7 @@ Docker 镜像层通常远大于 Maven/npm/PyPI 等包，请求连接持续时间
 | 请求 | 解析方式 |
 | --- | --- |
 | `GET /v2/` | registry 探测，不绑定具体仓库 |
-| `/v2/<repo>/<image...>/manifests/<reference>` | `<repo>` 为 nexus-plus 仓库名，`<image...>` 为 Docker repository name |
+| `/v2/<repo>/<image...>/manifests/<reference>` | `<repo>` 为 kkrepo 仓库名，`<image...>` 为 Docker repository name |
 | `/v2/<repo>/<image...>/blobs/<digest>` | digest 为 `sha256:<hex>` 等 OCI digest |
 | `/v2/<repo>/<image...>/blobs/uploads/` | 创建 upload session |
 | `/v2/<repo>/<image...>/blobs/uploads/<uuid>` | 读取、追加、完成或取消 upload session |
@@ -293,9 +293,9 @@ token 实现建议：
 - 第一阶段使用短生命周期、MySQL 可校验的 opaque token，避免多副本签名 key 分发问题。
 - 如果后续改成 JWT，签名密钥必须来自共享配置，并支持 key rotation。
 
-scope 到 nexus-plus 权限映射：
+scope 到 kkrepo 权限映射：
 
-| Docker action | nexus-plus permission |
+| Docker action | kkrepo permission |
 | --- | --- |
 | `pull` | `READ`，必要时也检查 `BROWSE` |
 | `push` | blob upload 为 `ADD`，manifest/tag 覆盖为 `EDIT` |

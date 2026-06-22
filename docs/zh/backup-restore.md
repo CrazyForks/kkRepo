@@ -1,6 +1,6 @@
 # 备份恢复指南
 
-nexus-plus 将元数据和协调状态存储在 MySQL，将制品字节内容存储在 blob storage。可恢复的生产部署必须同时备份两者。
+kkrepo 将元数据和协调状态存储在 MySQL，将制品字节内容存储在 blob storage。可恢复的生产部署必须同时备份两者。
 
 ## 必须备份什么
 
@@ -54,8 +54,8 @@ mysqldump \
   --single-transaction \
   --routines \
   --triggers \
-  --databases nexus_plus \
-  > nexus_plus-$(date +%Y%m%d%H%M%S).sql
+  --databases kkrepo \
+  > kkrepo-$(date +%Y%m%d%H%M%S).sql
 ```
 
 托管 MySQL 通常提供 snapshot 和 point-in-time recovery。生产环境优先使用托管 PITR。
@@ -76,10 +76,10 @@ mysqldump \
 
 推荐恢复流程：
 
-1. 停止 nexus-plus 副本，或阻断仓库写流量。
+1. 停止 kkrepo 副本，或阻断仓库写流量。
 2. 将 MySQL 恢复到选定恢复点。
 3. 恢复或验证 blob storage，确保所有被引用对象存在。
-4. 启动一个 nexus-plus 副本。
+4. 启动一个 kkrepo 副本。
 5. 验证 `/actuator/health`。
 6. 验证 admin UI 和 browse UI。
 7. 从关键仓库拉取代表性制品。
@@ -110,7 +110,7 @@ mysqldump \
 1. 创建一个全新环境。
 2. 恢复接近生产规模的 MySQL 备份。
 3. 指向恢复或复制后的 blob store。
-4. 使用相同加密密钥启动 nexus-plus。
+4. 使用相同加密密钥启动 kkrepo。
 5. 验证代表性客户端操作。
 6. 记录耗时和发现的问题。
 
@@ -120,7 +120,7 @@ mysqldump \
 
 Nexus 迁移前：
 
-- 备份目标 nexus-plus MySQL。
+- 备份目标 kkrepo MySQL。
 - 如果目标 blob store 已有重要数据，先备份或 snapshot。
 - 导出或记录源 Nexus 版本和仓库列表。
 - 最终切换被接受前，保持源 Nexus 可用且尽量不改动。
@@ -135,7 +135,7 @@ Nexus 迁移前：
 迁移后：
 
 - 切换前做最终增量同步。
-- 验收后备份 nexus-plus。
+- 验收后备份 kkrepo。
 - 可行时保留源 Nexus 一段回滚窗口。
 
 ## 常见恢复问题
@@ -144,8 +144,8 @@ Nexus 迁移前：
 | --- | --- | --- |
 | 制品元数据存在但下载失败 | 恢复后的存储缺少 blob object | 恢复缺失对象版本，或恢复到更晚的 blob 备份 |
 | 管理员登录失败 | 数据库不对、realm 状态不对，或加密密钥缺失 | 检查 datasource 和密钥 |
-| Blob store 凭据无法读取 | `NEXUS_PLUS_CREDENTIAL_SECRET` 变化 | 恢复原密钥或重新配置 blob store |
-| API key 不再可用 | `NEXUS_PLUS_API_KEY_PAYLOAD_SECRET` 变化，或数据库恢复到旧状态 | 恢复原密钥或重新签发 API key |
+| Blob store 凭据无法读取 | `KKREPO_CREDENTIAL_SECRET` 变化 | 恢复原密钥或重新配置 blob store |
+| API key 不再可用 | `KKREPO_API_KEY_PAYLOAD_SECRET` 变化，或数据库恢复到旧状态 | 恢复原密钥或重新签发 API key |
 | 新上传失败 | Blob store 权限或 bucket policy 改变 | 执行 blob store health probe 并检查 IAM policy |
 | 迁移 job 看起来卡住 | 恢复数据库时 job 正在运行 | 检查迁移状态，在 UI 中 retry failed 或继续未完成任务 |
 

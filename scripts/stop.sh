@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$ROOT/logs"
 PID_FILE="$LOG_DIR/server.pid"
-PORT="${NEXUS_PLUS_PORT:-18090}"
+PORT="${KKREPO_PORT:-18090}"
 
 mkdir -p "$LOG_DIR"
 
@@ -20,7 +20,7 @@ command_for_pid() {
 is_repo_process() {
   local command
   command="$(command_for_pid "$1")"
-  [[ "$command" == *"$ROOT"* || "$command" == *"NexusPlusApplication"* ]]
+  [[ "$command" == *"$ROOT"* || "$command" == *"KkRepoApplication"* ]]
 }
 
 port_pids() {
@@ -29,7 +29,7 @@ port_pids() {
 
 repo_process_pids() {
   ps -axo pid=,command= | awk -v root="$ROOT" '
-    index($0, root) && (index($0, "spring-boot:run") || index($0, "NexusPlusApplication")) { print $1 }
+    index($0, root) && (index($0, "spring-boot:run") || index($0, "KkRepoApplication")) { print $1 }
   '
 }
 
@@ -134,7 +134,7 @@ if [[ -f "$PID_FILE" ]]; then
     add_tree "$PID"
     add_repo_parent "$PID"
   else
-    echo "[stop] pid file is stale or not nexus-plus (${PID:-empty}); removing $PID_FILE"
+    echo "[stop] pid file is stale or not kkrepo (${PID:-empty}); removing $PID_FILE"
     rm -f "$PID_FILE"
   fi
 else

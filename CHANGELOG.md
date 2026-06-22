@@ -1,6 +1,6 @@
 # Changelog
 
-All notable public changes to nexus-plus are documented in this file.
+All notable public changes to kkrepo are documented in this file.
 
 This project follows a pragmatic early-stage release process. Until a stable `1.0.0` release is announced, minor versions may include behavior changes, but releases should call out migration impact, compatibility changes, and operational notes.
 
@@ -20,7 +20,7 @@ This project follows a pragmatic early-stage release process. Until a stable `1.
 
 ### Added
 
-- First public release of nexus-plus.
+- First public release of kkrepo.
 - Public Docker image on GitHub Container Registry.
 - Archive distributions as `.zip` and `.tar.gz` with SHA-256 checksums.
 - Quickstart script for local trials with Docker Compose and MySQL.

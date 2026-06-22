@@ -1,11 +1,11 @@
 name: Nexus compatibility issue
-description: Report a client-visible difference between Nexus and nexus-plus.
+description: Report a client-visible difference between Nexus and kkrepo.
 title: "[Compatibility]: "
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template when Nexus and nexus-plus respond differently for the same client-visible behavior.
+        Use this template when Nexus and kkrepo respond differently for the same client-visible behavior.
   - type: textarea
     id: summary
     attributes:
@@ -48,9 +48,9 @@ body:
     validations:
       required: true
   - type: textarea
-    id: nexus_plus
+    id: kkrepo
     attributes:
-      label: nexus-plus behavior
+      label: kkrepo behavior
       description: Include status, headers, body semantics, generated metadata, or checksum details.
       render: text
     validations:
@@ -66,10 +66,10 @@ body:
     id: reproduction
     attributes:
       label: Reproduction notes
-      description: Reference instance version, nexus-plus commit, repository settings, and whether write tests are enabled.
+      description: Reference instance version, kkrepo commit, repository settings, and whether write tests are enabled.
       placeholder: |
         - Nexus version:
-        - nexus-plus commit:
+        - kkrepo commit:
         - Repository type:
         - Hosted/proxy/group:
         - Related compat-test:

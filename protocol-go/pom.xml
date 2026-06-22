@@ -5,16 +5,16 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.github.klboke</groupId>
-    <artifactId>nexus-plus</artifactId>
+    <artifactId>kkrepo</artifactId>
     <version>0.1.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <artifactId>nexus-plus-protocol-go</artifactId>
-  <name>nexus-plus-protocol-go</name>
+  <artifactId>kkrepo-protocol-go</artifactId>
+  <name>kkrepo-protocol-go</name>
   <dependencies>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-core</artifactId>
+      <artifactId>kkrepo-core</artifactId>
     </dependency>
   </dependencies>
 </project>

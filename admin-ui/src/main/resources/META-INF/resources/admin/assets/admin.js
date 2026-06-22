@@ -59,8 +59,8 @@ function csrfToken() {
   return document.cookie
     .split(";")
     .map((part) => part.trim())
-    .find((part) => part.startsWith("NEXUS_PLUS_CSRF="))
-    ?.substring("NEXUS_PLUS_CSRF=".length) || "";
+    .find((part) => part.startsWith("KKREPO_CSRF="))
+    ?.substring("KKREPO_CSRF=".length) || "";
 }
 
 const viewHashRoutes = {

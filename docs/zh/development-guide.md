@@ -20,13 +20,13 @@
 | 依赖 | 默认值 |
 | --- | --- |
 | MySQL 地址 | `127.0.0.1:13306` |
-| MySQL 数据库 | `nexus_plus` |
-| MySQL 用户名/密码 | `nexus_plus` / `nexus_plus` |
+| MySQL 数据库 | `kkrepo` |
+| MySQL 用户名/密码 | `kkrepo` / `kkrepo` |
 | File blob store 基准目录 | `blobs` |
 | S3 endpoint | `http://127.0.0.1:9000` |
 | S3 控制台 | `http://127.0.0.1:9001` |
 | S3 access key / secret key | `minioadmin` / `minioadmin` |
-| 开发 bucket | `nexus-plus` |
+| 开发 bucket | `kkrepo` |
 
 ### Docker 一键启动依赖
 
@@ -41,7 +41,7 @@ docker compose -f docker-compose.dev.yml ps
 
 | 服务 | 镜像 | 本地地址 | 说明 |
 | --- | --- | --- | --- |
-| MySQL | `mysql:8.0` | `127.0.0.1:13306` | 自动创建 `nexus_plus` 数据库和 `nexus_plus` 用户 |
+| MySQL | `mysql:8.0` | `127.0.0.1:13306` | 自动创建 `kkrepo` 数据库和 `kkrepo` 用户 |
 | RustFS | `rustfs/rustfs:latest` | S3 API: `http://127.0.0.1:9000`；Console: `http://127.0.0.1:9001` | S3 兼容对象存储，用于验证 OSS/S3 blob store 行为 |
 
 本地数据目录：
@@ -51,7 +51,7 @@ docker compose -f docker-compose.dev.yml ps
 
 RustFS 官方镜像以非 root 用户运行，挂载宿主机目录时需要确保数据目录可由 UID `10001` 写入。`docker-compose.dev.yml` 中的 `rustfs-perms` init service 会在启动 RustFS 前自动修正目录权限。
 
-首次使用 S3/OSS blob store 时，需要在 RustFS 控制台或 S3 客户端中创建开发 bucket：`nexus-plus`。
+首次使用 S3/OSS blob store 时，需要在 RustFS 控制台或 S3 客户端中创建开发 bucket：`kkrepo`。
 
 停止依赖：
 
@@ -65,7 +65,7 @@ docker compose -f docker-compose.dev.yml down
 
 辅助脚本位于 `scripts/`。这些脚本使用 Spring 的 `dev` profile，该 profile 会：
 
-- 如果设置了 `NEXUS_PLUS_PORT`，服务会绑定到该端口；否则使用 `18090` 端口
+- 如果设置了 `KKREPO_PORT`，服务会绑定到该端口；否则使用 `18090` 端口
 - 管理端口固定为 `18091`，`/actuator/health`、`/actuator/metrics` 和 `/actuator/prometheus` 从该端口暴露
 - 直接从各模块的 `src/main/resources/META-INF/resources/` 提供静态 UI 资源，因此修改 HTML/CSS/JS 后刷新浏览器即可看到效果
 - 启用 `spring-boot-devtools`，支持 Java 增量重载
@@ -83,7 +83,7 @@ docker compose -f docker-compose.dev.yml down
 
 ```bash
 ./scripts/dev.sh
-NEXUS_PLUS_PORT=48092 ./scripts/dev.sh
+KKREPO_PORT=48092 ./scripts/dev.sh
 ./scripts/logs.sh
 curl -sS http://127.0.0.1:18091/actuator/health
 ./scripts/recompile.sh
@@ -136,16 +136,16 @@ mvn -pl server -am \
 
 ```bash
 mvn -pl server -am -DskipTests package spring-boot:repackage
-java -jar server/target/nexus-plus-server-*.jar
+java -jar server/target/kkrepo-server-*.jar
 ```
 
-注意：普通 `server` 模块 jar 没有 Spring Boot 可执行入口。需要复制或部署 `server/target/nexus-plus-server-*.jar` 时，必须先执行 `spring-boot:repackage`。
+注意：普通 `server` 模块 jar 没有 Spring Boot 可执行入口。需要复制或部署 `server/target/kkrepo-server-*.jar` 时，必须先执行 `spring-boot:repackage`。
 
 Docker 镜像、压缩包产物和生产部署说明见 [构建部署指南](build-deployment-guide.md)。
 
 ## 兼容性测试
 
-协议功能必须优先对齐官方协议和 Nexus 行为。新增或修改协议行为时，应优先补充 `compat-test` 中面向 Nexus 参考实例运行的黑盒兼容性测试，再实现 nexus-plus 中的最小兼容行为。
+协议功能必须优先对齐官方协议和 Nexus 行为。新增或修改协议行为时，应优先补充 `compat-test` 中面向 Nexus 参考实例运行的黑盒兼容性测试，再实现 kkrepo 中的最小兼容行为。
 
 默认兼容性测试：
 
@@ -153,7 +153,7 @@ Docker 镜像、压缩包产物和生产部署说明见 [构建部署指南](bui
 mvn -pl compat-test -am test
 ```
 
-Live black-box 测试默认跳过，需要显式提供 Nexus 参考实例和 nexus-plus 地址。具体命令见 [compat-test/README.md](../../compat-test/README.md)。
+Live black-box 测试默认跳过，需要显式提供 Nexus 参考实例和 kkrepo 地址。具体命令见 [compat-test/README.md](../../compat-test/README.md)。
 
 ## 配置中心
 
@@ -162,8 +162,8 @@ Live black-box 测试默认跳过，需要显式提供 Nexus 参考实例和 nex
 生产或联调环境可以通过运行参数指定 Apollo meta 地址：
 
 ```bash
-NEXUS_PLUS_APOLLO_META=http://apollo-config:8080 java -jar server/target/nexus-plus-server-*.jar
-java -Dapollo.meta=http://apollo-config:8080 -jar server/target/nexus-plus-server-*.jar
+KKREPO_APOLLO_META=http://apollo-config:8080 java -jar server/target/kkrepo-server-*.jar
+java -Dapollo.meta=http://apollo-config:8080 -jar server/target/kkrepo-server-*.jar
 ```
 
 ## 实现约束

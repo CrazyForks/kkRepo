@@ -4,19 +4,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_ROOT/docker-compose.compat.yml}"
-export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-nexus-plus-compat}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-kkrepo-compat}"
 
 NEXUS_URL="${NEXUS_COMPAT_BASE_URL:-http://127.0.0.1:${NEXUS_COMPAT_PORT:-28090}}"
 NEXUS_USER="${NEXUS_COMPAT_USERNAME:-admin}"
 NEXUS_PASSWORD="${NEXUS_COMPAT_PASSWORD:-123456}"
 NEXUS_AUTH="$NEXUS_USER:$NEXUS_PASSWORD"
 
-NEXUS_PLUS_URL="${NEXUS_PLUS_COMPAT_BASE_URL:-http://127.0.0.1:${NEXUS_PLUS_COMPAT_PORT:-18090}}"
-NEXUS_PLUS_MANAGEMENT_URL="${NEXUS_PLUS_MANAGEMENT_URL:-http://127.0.0.1:${NEXUS_PLUS_MANAGEMENT_PORT:-18091}}"
-NEXUS_PLUS_USER="${NEXUS_PLUS_COMPAT_USERNAME:-admin}"
-NEXUS_PLUS_PASSWORD="${NEXUS_PLUS_COMPAT_PASSWORD:-12345678}"
-NEXUS_PLUS_AUTH="$NEXUS_PLUS_USER:$NEXUS_PLUS_PASSWORD"
-NEXUS_PLUS_BLOB_PATH="${NEXUS_PLUS_COMPAT_BLOB_PATH:-/tmp/nexus-plus-blobs/default}"
+KKREPO_URL="${KKREPO_COMPAT_BASE_URL:-http://127.0.0.1:${KKREPO_COMPAT_PORT:-18090}}"
+KKREPO_MANAGEMENT_URL="${KKREPO_MANAGEMENT_URL:-http://127.0.0.1:${KKREPO_MANAGEMENT_PORT:-18091}}"
+KKREPO_USER="${KKREPO_COMPAT_USERNAME:-admin}"
+KKREPO_PASSWORD="${KKREPO_COMPAT_PASSWORD:-12345678}"
+KKREPO_AUTH="$KKREPO_USER:$KKREPO_PASSWORD"
+KKREPO_BLOB_PATH="${KKREPO_COMPAT_BLOB_PATH:-/tmp/kkrepo-blobs/default}"
 
 START_TIMEOUT_SECONDS="${LIVE_COMPAT_START_TIMEOUT_SECONDS:-240}"
 
@@ -149,14 +149,14 @@ ensure_nexus_repositories() {
   }'
 }
 
-initialize_nexus_plus_admin() {
-  wait_for_http "nexus-plus bootstrap endpoint" "$NEXUS_PLUS_URL/internal/security/bootstrap"
+initialize_kkrepo_admin() {
+  wait_for_http "kkrepo bootstrap endpoint" "$KKREPO_URL/internal/security/bootstrap"
 
   local bootstrap_json
-  bootstrap_json="$(curl -m 10 -fsS "$NEXUS_PLUS_URL/internal/security/bootstrap")"
+  bootstrap_json="$(curl -m 10 -fsS "$KKREPO_URL/internal/security/bootstrap")"
   if [[ "$bootstrap_json" != *'"required":true'* ]]; then
-    echo "[compat] nexus-plus admin bootstrap is already complete"
-    curl -m 10 -fsS -u "$NEXUS_PLUS_AUTH" "$NEXUS_PLUS_URL/internal/security/session" >/dev/null
+    echo "[compat] kkrepo admin bootstrap is already complete"
+    curl -m 10 -fsS -u "$KKREPO_AUTH" "$KKREPO_URL/internal/security/session" >/dev/null
     return 0
   fi
 
@@ -165,73 +165,73 @@ initialize_nexus_plus_admin() {
   headers_file="$(mktemp)"
 
   curl -m 10 -sS -D "$headers_file" -c "$cookie_file" \
-    "$NEXUS_PLUS_URL/internal/security/session" >/dev/null || true
+    "$KKREPO_URL/internal/security/session" >/dev/null || true
   token="$(awk 'BEGIN{IGNORECASE=1} /^X-Nexus-Plus-CSRF-Token:/ {gsub("\r","",$2); print $2}' "$headers_file" | tail -n 1)"
   if [[ -z "$token" ]]; then
-    echo "[compat] nexus-plus did not expose a CSRF token for bootstrap" >&2
+    echo "[compat] kkrepo did not expose a CSRF token for bootstrap" >&2
     return 1
   fi
 
-  payload="$(printf '{"password":"%s","passwordConfirm":"%s"}' "$NEXUS_PLUS_PASSWORD" "$NEXUS_PLUS_PASSWORD")"
-  echo "[compat] bootstrapping nexus-plus admin"
+  payload="$(printf '{"password":"%s","passwordConfirm":"%s"}' "$KKREPO_PASSWORD" "$KKREPO_PASSWORD")"
+  echo "[compat] bootstrapping kkrepo admin"
   curl -m 20 -fsS \
     -b "$cookie_file" \
     -c "$cookie_file" \
     -H "X-Nexus-Plus-CSRF-Token: $token" \
     -H "Content-Type: application/json" \
     --data "$payload" \
-    "$NEXUS_PLUS_URL/internal/security/bootstrap/admin" >/dev/null
+    "$KKREPO_URL/internal/security/bootstrap/admin" >/dev/null
 
-  curl -m 10 -fsS -u "$NEXUS_PLUS_AUTH" "$NEXUS_PLUS_URL/internal/security/session" >/dev/null
+  curl -m 10 -fsS -u "$KKREPO_AUTH" "$KKREPO_URL/internal/security/session" >/dev/null
   rm -f "$cookie_file" "$headers_file"
 }
 
-nexus_plus_blob_store_exists() {
+kkrepo_blob_store_exists() {
   local name="$1"
   local stores
-  stores="$(curl -m 20 -fsS -u "$NEXUS_PLUS_AUTH" "$NEXUS_PLUS_URL/internal/blob-stores")"
+  stores="$(curl -m 20 -fsS -u "$KKREPO_AUTH" "$KKREPO_URL/internal/blob-stores")"
   grep -q "\"name\"[[:space:]]*:[[:space:]]*\"$name\"" <<<"$stores"
 }
 
-ensure_nexus_plus_blob_store() {
-  if nexus_plus_blob_store_exists "default"; then
-    echo "[compat] nexus-plus blob store exists: default"
+ensure_kkrepo_blob_store() {
+  if kkrepo_blob_store_exists "default"; then
+    echo "[compat] kkrepo blob store exists: default"
     return 0
   fi
-  echo "[compat] creating nexus-plus file blob store: default"
+  echo "[compat] creating kkrepo file blob store: default"
   curl -m 30 -fsS \
-    -u "$NEXUS_PLUS_AUTH" \
+    -u "$KKREPO_AUTH" \
     -X POST \
     -H "Content-Type: application/json" \
-    --data "{\"name\":\"default\",\"type\":\"file\",\"path\":\"$NEXUS_PLUS_BLOB_PATH\"}" \
-    "$NEXUS_PLUS_URL/internal/blob-stores" >/dev/null
+    --data "{\"name\":\"default\",\"type\":\"file\",\"path\":\"$KKREPO_BLOB_PATH\"}" \
+    "$KKREPO_URL/internal/blob-stores" >/dev/null
 }
 
-nexus_plus_repo_exists() {
+kkrepo_repo_exists() {
   local name="$1"
   local repositories
-  repositories="$(curl -m 20 -fsS -u "$NEXUS_PLUS_AUTH" "$NEXUS_PLUS_URL/internal/repositories?purpose=admin")"
+  repositories="$(curl -m 20 -fsS -u "$KKREPO_AUTH" "$KKREPO_URL/internal/repositories?purpose=admin")"
   grep -q "\"name\"[[:space:]]*:[[:space:]]*\"$name\"" <<<"$repositories"
 }
 
-nexus_plus_create_repo() {
+kkrepo_create_repo() {
   local name="$1"
   local payload="$2"
-  if nexus_plus_repo_exists "$name"; then
-    echo "[compat] nexus-plus repository exists: $name"
+  if kkrepo_repo_exists "$name"; then
+    echo "[compat] kkrepo repository exists: $name"
     return 0
   fi
-  echo "[compat] creating nexus-plus repository: $name"
+  echo "[compat] creating kkrepo repository: $name"
   curl -m 30 -fsS \
-    -u "$NEXUS_PLUS_AUTH" \
+    -u "$KKREPO_AUTH" \
     -X POST \
     -H "Content-Type: application/json" \
     --data "$payload" \
-    "$NEXUS_PLUS_URL/internal/repositories" >/dev/null
+    "$KKREPO_URL/internal/repositories" >/dev/null
 }
 
-ensure_nexus_plus_repositories() {
-  nexus_plus_create_repo "maven-releases" '{
+ensure_kkrepo_repositories() {
+  kkrepo_create_repo "maven-releases" '{
     "name":"maven-releases",
     "recipe":"maven2-hosted",
     "online":true,
@@ -240,7 +240,7 @@ ensure_nexus_plus_repositories() {
     "hosted":{"writePolicy":"ALLOW_ONCE","versionPolicy":"RELEASE","layoutPolicy":"STRICT"}
   }'
 
-  nexus_plus_create_repo "maven-snapshots" '{
+  kkrepo_create_repo "maven-snapshots" '{
     "name":"maven-snapshots",
     "recipe":"maven2-hosted",
     "online":true,
@@ -249,7 +249,7 @@ ensure_nexus_plus_repositories() {
     "hosted":{"writePolicy":"ALLOW","versionPolicy":"SNAPSHOT","layoutPolicy":"STRICT"}
   }'
 
-  nexus_plus_create_repo "maven-central" '{
+  kkrepo_create_repo "maven-central" '{
     "name":"maven-central",
     "recipe":"maven2-proxy",
     "online":true,
@@ -258,7 +258,7 @@ ensure_nexus_plus_repositories() {
     "proxy":{"remoteUrl":"https://repo1.maven.org/maven2/","contentMaxAgeMinutes":1440,"metadataMaxAgeMinutes":1440,"autoBlock":true}
   }'
 
-  nexus_plus_create_repo "maven-public" '{
+  kkrepo_create_repo "maven-public" '{
     "name":"maven-public",
     "recipe":"maven2-group",
     "online":true,
@@ -267,7 +267,7 @@ ensure_nexus_plus_repositories() {
     "group":{"memberNames":["maven-releases","maven-snapshots","maven-central"]}
   }'
 
-  nexus_plus_create_repo "npm-hosted" '{
+  kkrepo_create_repo "npm-hosted" '{
     "name":"npm-hosted",
     "recipe":"npm-hosted",
     "online":true,
@@ -276,7 +276,7 @@ ensure_nexus_plus_repositories() {
     "hosted":{"writePolicy":"ALLOW"}
   }'
 
-  nexus_plus_create_repo "npm-proxy" '{
+  kkrepo_create_repo "npm-proxy" '{
     "name":"npm-proxy",
     "recipe":"npm-proxy",
     "online":true,
@@ -285,7 +285,7 @@ ensure_nexus_plus_repositories() {
     "proxy":{"remoteUrl":"https://registry.npmjs.org","contentMaxAgeMinutes":1440,"metadataMaxAgeMinutes":1440,"autoBlock":true}
   }'
 
-  nexus_plus_create_repo "npm-group" '{
+  kkrepo_create_repo "npm-group" '{
     "name":"npm-group",
     "recipe":"npm-group",
     "online":true,
@@ -296,12 +296,12 @@ ensure_nexus_plus_repositories() {
 }
 
 wait_for_http "Nexus status endpoint" "$NEXUS_URL/service/rest/v1/status"
-wait_for_http "nexus-plus management health" "$NEXUS_PLUS_MANAGEMENT_URL/actuator/health"
+wait_for_http "kkrepo management health" "$KKREPO_MANAGEMENT_URL/actuator/health"
 
 initialize_nexus_admin
 ensure_nexus_repositories
-initialize_nexus_plus_admin
-ensure_nexus_plus_blob_store
-ensure_nexus_plus_repositories
+initialize_kkrepo_admin
+ensure_kkrepo_blob_store
+ensure_kkrepo_repositories
 
 echo "[compat] live compatibility environment is ready"

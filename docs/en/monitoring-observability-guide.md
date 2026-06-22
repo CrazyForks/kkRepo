@@ -1,14 +1,14 @@
 # Monitoring And Observability Guide
 
-This document describes nexus-plus health checks, Prometheus metrics, Grafana dashboards, and common alerting recommendations.
+This document describes kkrepo health checks, Prometheus metrics, Grafana dashboards, and common alerting recommendations.
 
 ## Exposed Ports
 
-nexus-plus exposes health checks and metrics through Spring Boot Actuator.
+kkrepo exposes health checks and metrics through Spring Boot Actuator.
 
 | Scenario | Service port | Management port | Description |
 | --- | --- | --- | --- |
-| Default runtime | `8080` | `8081` | Management port can be overridden by `NEXUS_PLUS_MANAGEMENT_PORT` |
+| Default runtime | `8080` | `8081` | Management port can be overridden by `KKREPO_MANAGEMENT_PORT` |
 | Local `dev` profile | `18090` | `18091` | Default ports used by `scripts/dev.sh` |
 
 Common endpoints:
@@ -34,11 +34,11 @@ Prometheus scrapes `/actuator/prometheus` on the management port:
 
 ```yaml
 scrape_configs:
-  - job_name: nexus-plus
+  - job_name: kkrepo
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - nexus-plus:8081
+          - kkrepo:8081
 ```
 
 In Kubernetes, add Prometheus scrape annotations to the Pod or Service:
@@ -55,18 +55,18 @@ If Prometheus Operator is used, scrape the management port with a `ServiceMonito
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: nexus-plus
+  name: kkrepo
 spec:
   selector:
     matchLabels:
-      app: nexus-plus
+      app: kkrepo
   endpoints:
     - port: management
       path: /actuator/prometheus
       interval: 30s
 ```
 
-Metrics include the `application` label by default. Its value comes from `spring.application.name`, which is `nexus-plus` by default. For multi-environment deployments, keep labels such as `namespace`, `pod`, and `instance` on the Prometheus side so you can troubleshoot by environment and replica.
+Metrics include the `application` label by default. Its value comes from `spring.application.name`, which is `kkrepo` by default. For multi-environment deployments, keep labels such as `namespace`, `pod`, and `instance` on the Prometheus side so you can troubleshoot by environment and replica.
 
 ## Grafana Dashboard
 
@@ -82,7 +82,7 @@ Import steps:
 2. Go to `Dashboards` -> `New` -> `Import`.
 3. Upload `docs/resources/grafana/dashboard.json`.
 4. Select any Prometheus data source.
-5. Select `application` at the top of the dashboard. It matches `nexus-plus` application labels by default.
+5. Select `application` at the top of the dashboard. It matches `kkrepo` application labels by default.
 
 The dashboard uses a generic Prometheus data source variable and is not bound to a specific `Prometheus-DEV` data source name.
 
@@ -107,10 +107,10 @@ Background tasks, rebuild queues, GC, and rate-limit metrics:
 | Metric | Type | Description |
 | --- | --- | --- |
 | `http_server_requests_seconds_*` | Spring Boot timer | HTTP request latency and count |
-| `nexus_plus_repository_requests_total` | counter | Repository protocol request count |
-| `nexus_plus_repository_request_duration_seconds_*` | timer | Repository protocol request latency |
-| `nexus_plus_repository_upload_bytes_total` | counter | Uploaded request body bytes |
-| `nexus_plus_repository_response_bytes_total` | counter | Response bytes |
+| `kkrepo_repository_requests_total` | counter | Repository protocol request count |
+| `kkrepo_repository_request_duration_seconds_*` | timer | Repository protocol request latency |
+| `kkrepo_repository_upload_bytes_total` | counter | Uploaded request body bytes |
+| `kkrepo_repository_response_bytes_total` | counter | Response bytes |
 
 Common labels:
 
@@ -126,9 +126,9 @@ Common labels:
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `nexus_plus_proxy_remote_requests_total` | counter | Upstream request count for proxy repositories |
-| `nexus_plus_proxy_remote_duration_seconds_*` | timer | Upstream request latency for proxy repositories |
-| `nexus_plus_proxy_cache_events_total` | counter | Proxy cache hit, miss, negative cache, and similar events |
+| `kkrepo_proxy_remote_requests_total` | counter | Upstream request count for proxy repositories |
+| `kkrepo_proxy_remote_duration_seconds_*` | timer | Upstream request latency for proxy repositories |
+| `kkrepo_proxy_cache_events_total` | counter | Proxy cache hit, miss, negative cache, and similar events |
 
 Focus on `remote_host`, `status`, and `outcome`. If package pulls from a proxy repository become slow, check upstream latency and upstream errors first.
 
@@ -136,9 +136,9 @@ Focus on `remote_host`, `status`, and `outcome`. If package pulls from a proxy r
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `nexus_plus_blob_storage_operations_total` | counter | Blob storage operation count |
-| `nexus_plus_blob_storage_operation_duration_seconds_*` | timer | Blob storage operation latency |
-| `nexus_plus_blob_storage_bytes_total` | counter | Blob read/write bytes |
+| `kkrepo_blob_storage_operations_total` | counter | Blob storage operation count |
+| `kkrepo_blob_storage_operation_duration_seconds_*` | timer | Blob storage operation latency |
+| `kkrepo_blob_storage_bytes_total` | counter | Blob read/write bytes |
 
 Common labels:
 
@@ -152,15 +152,15 @@ Common labels:
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `nexus_plus_worker_items_total` | counter | Number of items processed by background workers |
-| `nexus_plus_worker_item_duration_seconds_*` | timer | Time spent processing a single item |
-| `nexus_plus_worker_batch_duration_seconds_*` | timer | Time spent processing a worker batch |
-| `nexus_plus_metadata_rebuild_backlog` | gauge | Maven metadata rebuild backlog |
-| `nexus_plus_metadata_rebuild_oldest_age_seconds` | gauge | Wait time of the oldest Maven metadata rebuild task |
-| `nexus_plus_metadata_rebuild_failures` | gauge | Maven metadata rebuild failure backlog |
-| `nexus_plus_repository_index_rebuild_backlog` | gauge | Repository index rebuild backlog |
-| `nexus_plus_repository_index_rebuild_oldest_age_seconds` | gauge | Wait time of the oldest repository index rebuild task |
-| `nexus_plus_repository_index_rebuild_failures` | gauge | Repository index rebuild failure backlog |
+| `kkrepo_worker_items_total` | counter | Number of items processed by background workers |
+| `kkrepo_worker_item_duration_seconds_*` | timer | Time spent processing a single item |
+| `kkrepo_worker_batch_duration_seconds_*` | timer | Time spent processing a worker batch |
+| `kkrepo_metadata_rebuild_backlog` | gauge | Maven metadata rebuild backlog |
+| `kkrepo_metadata_rebuild_oldest_age_seconds` | gauge | Wait time of the oldest Maven metadata rebuild task |
+| `kkrepo_metadata_rebuild_failures` | gauge | Maven metadata rebuild failure backlog |
+| `kkrepo_repository_index_rebuild_backlog` | gauge | Repository index rebuild backlog |
+| `kkrepo_repository_index_rebuild_oldest_age_seconds` | gauge | Wait time of the oldest repository index rebuild task |
+| `kkrepo_repository_index_rebuild_failures` | gauge | Repository index rebuild failure backlog |
 
 If browse/search or protocol metadata is not updated for a long time, check backlog, oldest age, and failures first.
 
@@ -168,20 +168,20 @@ If browse/search or protocol metadata is not updated for a long time, check back
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `nexus_plus_blob_gc_backlog` | gauge | Number of soft-deleted blobs waiting for GC |
-| `nexus_plus_blob_gc_deleted_bytes_total` | counter | Blob bytes deleted by GC |
-| `nexus_plus_blob_gc_reconcile_scanned_total` | counter | Rows scanned by orphan blob reconcile |
-| `nexus_plus_blob_gc_reconcile_marked_total` | counter | Orphan blobs marked by reconcile |
-| `nexus_plus_blob_unreferenced_reconcile_cursor` | gauge | Orphan blob reconcile scan cursor |
+| `kkrepo_blob_gc_backlog` | gauge | Number of soft-deleted blobs waiting for GC |
+| `kkrepo_blob_gc_deleted_bytes_total` | counter | Blob bytes deleted by GC |
+| `kkrepo_blob_gc_reconcile_scanned_total` | counter | Rows scanned by orphan blob reconcile |
+| `kkrepo_blob_gc_reconcile_marked_total` | counter | Orphan blobs marked by reconcile |
+| `kkrepo_blob_unreferenced_reconcile_cursor` | gauge | Orphan blob reconcile scan cursor |
 
 ### Shared Cache And Rate Limiting
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `nexus_plus_cache_requests_total` | counter | Shared TTL cache request count |
-| `nexus_plus_cache_operation_duration_seconds_*` | timer | Cache operation latency |
-| `nexus_plus_cache_scan_deleted_keys_total` | counter | Number of cache keys deleted by prefix scan |
-| `nexus_plus_rate_limit_blocked_total` | counter | Number of requests blocked by rate limiting |
+| `kkrepo_cache_requests_total` | counter | Shared TTL cache request count |
+| `kkrepo_cache_operation_duration_seconds_*` | timer | Cache operation latency |
+| `kkrepo_cache_scan_deleted_keys_total` | counter | Number of cache keys deleted by prefix scan |
+| `kkrepo_rate_limit_blocked_total` | counter | Number of requests blocked by rate limiting |
 
 ## Alert Recommendations
 
@@ -190,13 +190,13 @@ The following PromQL rules are starting points only. Production thresholds shoul
 ### Instance Not Scrapeable
 
 ```promql
-up{job="nexus-plus"} == 0
+up{job="kkrepo"} == 0
 ```
 
 ### Repository Request 5xx
 
 ```promql
-sum(rate(nexus_plus_repository_requests_total{outcome="server_error"}[5m])) > 0
+sum(rate(kkrepo_repository_requests_total{outcome="server_error"}[5m])) > 0
 ```
 
 ### Repository Request Latency Too High
@@ -204,34 +204,34 @@ sum(rate(nexus_plus_repository_requests_total{outcome="server_error"}[5m])) > 0
 ```promql
 histogram_quantile(
   0.95,
-  sum(rate(nexus_plus_repository_request_duration_seconds_bucket[5m])) by (le, repo, method, operation)
+  sum(rate(kkrepo_repository_request_duration_seconds_bucket[5m])) by (le, repo, method, operation)
 ) > 2
 ```
 
 ### Proxy Upstream Errors
 
 ```promql
-sum(rate(nexus_plus_proxy_remote_requests_total{outcome=~"server_error|error"}[5m])) by (repo, remote_host) > 0
+sum(rate(kkrepo_proxy_remote_requests_total{outcome=~"server_error|error"}[5m])) by (repo, remote_host) > 0
 ```
 
 ### Blob Storage Errors
 
 ```promql
-sum(rate(nexus_plus_blob_storage_operations_total{outcome="error"}[5m])) by (store, engine, op) > 0
+sum(rate(kkrepo_blob_storage_operations_total{outcome="error"}[5m])) by (store, engine, op) > 0
 ```
 
 ### Background Queue Backlog
 
 ```promql
-nexus_plus_metadata_rebuild_oldest_age_seconds > 300
+kkrepo_metadata_rebuild_oldest_age_seconds > 300
 or
-nexus_plus_repository_index_rebuild_oldest_age_seconds > 300
+kkrepo_repository_index_rebuild_oldest_age_seconds > 300
 ```
 
 ### Rate Limit Blocks
 
 ```promql
-sum(rate(nexus_plus_rate_limit_blocked_total[5m])) by (type) > 0
+sum(rate(kkrepo_rate_limit_blocked_total[5m])) by (type) > 0
 ```
 
 ## Log Troubleshooting
@@ -239,22 +239,22 @@ sum(rate(nexus_plus_rate_limit_blocked_total[5m])) by (type) > 0
 Repository requests with non-success status are logged by default. Control this with:
 
 ```properties
-nexus-plus.repository.log-non-success-requests=true
-nexus-plus.repository.log-non-success-request-excluded-statuses=477,488
+kkrepo.repository.log-non-success-requests=true
+kkrepo.repository.log-non-success-request-excluded-statuses=477,488
 ```
 
 Corresponding environment variables:
 
 ```bash
-NEXUS_PLUS_REPOSITORY_LOG_NON_SUCCESS_REQUESTS=true
-NEXUS_PLUS_REPOSITORY_LOG_NON_SUCCESS_REQUEST_EXCLUDED_STATUSES=477,488
+KKREPO_REPOSITORY_LOG_NON_SUCCESS_REQUESTS=true
+KKREPO_REPOSITORY_LOG_NON_SUCCESS_REQUEST_EXCLUDED_STATUSES=477,488
 ```
 
 Troubleshooting suggestions:
 
 - Slow package pulls: check `Repository Request Latency`, then `Proxy Remote Latency` and `Blob Storage Latency`.
-- Proxy repository failures: check `remote_host`, `status`, and `outcome` on `nexus_plus_proxy_remote_requests_total`.
-- Slow or failed uploads: check `nexus_plus_repository_upload_bytes_total`, blob `put` latency, and blob `error`.
+- Proxy repository failures: check `remote_host`, `status`, and `outcome` on `kkrepo_proxy_remote_requests_total`.
+- Slow or failed uploads: check `kkrepo_repository_upload_bytes_total`, blob `put` latency, and blob `error`.
 - browse/search not updating: check metadata/index rebuild backlog and failures.
 - Many 401/403 responses: investigate with security audit logs and repository permission configuration.
 
@@ -266,7 +266,7 @@ Make sure you are accessing the management port, not the service port. The defau
 
 ### Grafana Has No Data
 
-First confirm the Prometheus target is `UP`, then check the dashboard data source and `application` variable. nexus-plus uses `nexus-plus` as the default `application` label.
+First confirm the Prometheus target is `UP`, then check the dashboard data source and `application` variable. kkrepo uses `kkrepo` as the default `application` label.
 
 ### Only Partial Data Is Visible In Multi-Replica Deployment
 

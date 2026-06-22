@@ -4,13 +4,13 @@
 
 Please report exploitable security vulnerabilities privately through GitHub Security Advisories:
 
-https://github.com/klboke/nexus-plus/security/advisories/new
+https://github.com/klboke/kkrepo/security/advisories/new
 
 Do not disclose exploitable details in public issues, pull requests, or discussions before a fix is available.
 
 When reporting, include:
 
-- Affected nexus-plus version or commit.
+- Affected kkrepo version or commit.
 - Deployment mode and relevant security configuration.
 - Steps to reproduce or proof-of-concept details.
 - Impact assessment, including whether authentication, authorization, repository content, tokens, credentials, or migration data are affected.
@@ -18,7 +18,7 @@ When reporting, include:
 
 ## Supported Versions
 
-nexus-plus is early-stage open source software. Security fixes target the latest `main` branch unless a release branch is explicitly announced.
+kkrepo is early-stage open source software. Security fixes target the latest `main` branch unless a release branch is explicitly announced.
 
 | Version | Supported |
 | --- | --- |

@@ -1,6 +1,6 @@
-# Contributing to nexus-plus
+# Contributing to kkrepo
 
-Thanks for helping improve nexus-plus. The project aims to stay compatible with Nexus client-visible behavior while using a MySQL-first, OSS/S3-first, multi-replica-friendly architecture.
+Thanks for helping improve kkrepo. The project aims to stay compatible with Nexus client-visible behavior while using a MySQL-first, OSS/S3-first, multi-replica-friendly architecture.
 
 ## Before You Start
 
@@ -38,11 +38,11 @@ mvn -pl compat-test -am \
   test
 ```
 
-Live black-box compatibility checks can start disposable Nexus and nexus-plus services with:
+Live black-box compatibility checks can start disposable Nexus and kkrepo services with:
 
 ```bash
-scripts/build-docker-image.sh nexus-plus:compat
-docker compose -f docker-compose.compat.yml up -d mysql nexus nexus-plus
+scripts/build-docker-image.sh kkrepo:compat
+docker compose -f docker-compose.compat.yml up -d mysql nexus kkrepo
 scripts/ci/live-compat-setup.sh
 scripts/ci/run-live-compat.sh smoke
 docker compose -f docker-compose.compat.yml down -v
@@ -56,7 +56,7 @@ Protocol changes should follow this order:
 
 1. Confirm the official protocol behavior and Nexus reference behavior.
 2. Add or update a compatibility test under `compat-test` when the behavior is externally visible.
-3. Implement the minimal compatible behavior in nexus-plus.
+3. Implement the minimal compatible behavior in kkrepo.
 4. Compare HTTP status, headers, response body semantics, generated metadata, checksum behavior, and real client behavior.
 5. Normalize only protocol-allowed nondeterministic fields such as host, timestamp, ordering, or generated IDs.
 
@@ -90,7 +90,7 @@ mvn -B -ntp -pl compat-test -am -Dtest=MavenMetadataMergeCompatibilityTest,Maven
 ```
 
 The separate `Live Compatibility` workflow builds a candidate Docker image, starts a disposable
-Nexus reference plus nexus-plus, bootstraps both environments, and runs black-box compatibility
+Nexus reference plus kkrepo, bootstraps both environments, and runs black-box compatibility
 checks. It runs nightly, can be started manually, and runs for PRs only after the
 `run-live-compat` label is added.
 

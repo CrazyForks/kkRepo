@@ -1,6 +1,6 @@
 # Compatibility Matrix
 
-This matrix summarizes the public compatibility surface of nexus-plus. It is intentionally user-visible: client commands, HTTP paths, repository recipes, migration support, and known limits. Internal Nexus implementation details are not compatibility targets unless they affect client behavior.
+This matrix summarizes the public compatibility surface of kkrepo. It is intentionally user-visible: client commands, HTTP paths, repository recipes, migration support, and known limits. Internal Nexus implementation details are not compatibility targets unless they affect client behavior.
 
 For deeper validation workflow details, see [Nexus Compatibility Testing](nexus-compatibility-testing.md).
 
@@ -62,7 +62,7 @@ Docker / OCI is different because Docker clients use registry `/v2/...` routes. 
 
 ## Migration Compatibility
 
-nexus-plus migration is treated as a product feature rather than a one-off script:
+kkrepo migration is treated as a product feature rather than a one-off script:
 
 - Metadata migration covers users, roles, privileges, blob stores, repository definitions, and related compatibility data.
 - Repository data migration scans hosted repositories by default.
@@ -74,7 +74,7 @@ See [Nexus Migration Guide](nexus-migration-guide.md).
 
 ## Known Limits
 
-- nexus-plus is not a full reimplementation of Nexus internals. Karaf, OSGi, OrientDB, embedded Elasticsearch, and the Nexus task subsystem are not compatibility goals.
+- kkrepo is not a full reimplementation of Nexus internals. Karaf, OSGi, OrientDB, embedded Elasticsearch, and the Nexus task subsystem are not compatibility goals.
 - Docker / OCI Registry support is in progress and not available as a completed repository format yet.
 - Go hosted upload is not supported; Go module proxy behavior is read-oriented.
 - Full coverage of every Nexus UI endpoint is not guaranteed. Endpoints are added when they are needed for supported user workflows or migration compatibility.
@@ -85,11 +85,11 @@ See [Nexus Migration Guide](nexus-migration-guide.md).
 
 Open a Nexus compatibility issue and include:
 
-- Nexus version and nexus-plus version or commit.
+- Nexus version and kkrepo version or commit.
 - Repository format and recipe.
 - The exact client command or HTTP request.
 - Nexus status, headers, and response body semantics.
-- nexus-plus status, headers, and response body semantics.
+- kkrepo status, headers, and response body semantics.
 - Client-visible impact.
 
 Use public issues for ordinary compatibility differences. Report exploitable security issues privately through [SECURITY.md](../../SECURITY.md).

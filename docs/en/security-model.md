@@ -1,12 +1,12 @@
 # Security Model
 
-This document explains the current nexus-plus security model: authentication, authorization, secrets, audit logs, and operational boundaries.
+This document explains the current kkrepo security model: authentication, authorization, secrets, audit logs, and operational boundaries.
 
 For vulnerability reporting, use [SECURITY.md](../../SECURITY.md).
 
 ## Goals
 
-nexus-plus security aims to:
+kkrepo security aims to:
 
 - Preserve Nexus-like users, roles, privileges, repository permissions, and common client behavior.
 - Support local users, LDAP, OIDC, API keys, and sessions.
@@ -48,7 +48,7 @@ This lets multiple replicas share sessions, authentication tickets, user state, 
 
 ## Authorization Model
 
-nexus-plus uses Nexus-style privileges. Repository privileges include:
+kkrepo uses Nexus-style privileges. Repository privileges include:
 
 - `browse`
 - `read`
@@ -77,14 +77,14 @@ Use least-privilege roles for CI users. Avoid granting broad `*` privileges to a
 Anonymous read is disabled by default in application configuration:
 
 ```properties
-nexus-plus.security.anonymous-read-enabled=false
+kkrepo.security.anonymous-read-enabled=false
 ```
 
 Enable anonymous access only when public read behavior is intentional. Review which repositories are readable before exposing the service externally.
 
 ## API Keys And Tokens
 
-nexus-plus stores API-key compatibility data in MySQL. Raw user-facing tokens are protected as encrypted payloads, and lookup uses hashed material rather than plaintext tokens.
+kkrepo stores API-key compatibility data in MySQL. Raw user-facing tokens are protected as encrypted payloads, and lookup uses hashed material rather than plaintext tokens.
 
 Operational guidance:
 
@@ -107,17 +107,17 @@ Protocol-specific clients may still use their native auth mechanisms.
 Two stable deployment secrets are required outside dev/test-style usage:
 
 ```bash
-NEXUS_PLUS_CREDENTIAL_SECRET=<strong-random-string>
-NEXUS_PLUS_API_KEY_PAYLOAD_SECRET=<strong-random-string>
+KKREPO_CREDENTIAL_SECRET=<strong-random-string>
+KKREPO_API_KEY_PAYLOAD_SECRET=<strong-random-string>
 ```
 
-`NEXUS_PLUS_CREDENTIAL_SECRET` protects reusable credentials, including:
+`KKREPO_CREDENTIAL_SECRET` protects reusable credentials, including:
 
 - Blob-store S3/OSS keys.
 - LDAP bind passwords.
 - OIDC client secrets.
 
-`NEXUS_PLUS_API_KEY_PAYLOAD_SECRET` protects user-facing API-key payloads.
+`KKREPO_API_KEY_PAYLOAD_SECRET` protects user-facing API-key payloads.
 
 Losing these secrets can make existing encrypted data unreadable. Changing them without a migration/re-encryption process can break blob-store credentials, realm credentials, and API keys.
 
@@ -154,10 +154,10 @@ Browser sessions use Spring Session JDBC and are shared across replicas.
 Production recommendations:
 
 ```bash
-NEXUS_PLUS_SESSION_STORE_TYPE=jdbc
-NEXUS_PLUS_SESSION_COOKIE_SECURE=true
-NEXUS_PLUS_CSRF_COOKIE_SECURE=true
-NEXUS_PLUS_HSTS_ENABLED=true
+KKREPO_SESSION_STORE_TYPE=jdbc
+KKREPO_SESSION_COOKIE_SECURE=true
+KKREPO_CSRF_COOKIE_SECURE=true
+KKREPO_HSTS_ENABLED=true
 ```
 
 Set secure cookies only behind HTTPS. Make sure reverse proxies pass cookies and forwarded headers correctly.
@@ -167,8 +167,8 @@ Set secure cookies only behind HTTPS. Make sure reverse proxies pass cookies and
 Login and bootstrap flows have rate-limit settings:
 
 ```bash
-NEXUS_PLUS_LOGIN_RATE_LIMIT_PER_MINUTE=20
-NEXUS_PLUS_BOOTSTRAP_RATE_LIMIT_PER_MINUTE=5
+KKREPO_LOGIN_RATE_LIMIT_PER_MINUTE=20
+KKREPO_BOOTSTRAP_RATE_LIMIT_PER_MINUTE=5
 ```
 
 These limits reduce accidental or basic abusive traffic. They do not replace network-level rate limiting, WAF policy, or identity-provider controls.
@@ -178,8 +178,8 @@ These limits reduce accidental or basic abusive traffic. They do not replace net
 Proxy repositories fetch upstream content. By default, private-address outbound access is disabled:
 
 ```bash
-NEXUS_PLUS_OUTBOUND_ALLOW_PRIVATE_ADDRESSES=false
-NEXUS_PLUS_OUTBOUND_ALLOWED_HOSTS=
+KKREPO_OUTBOUND_ALLOW_PRIVATE_ADDRESSES=false
+KKREPO_OUTBOUND_ALLOWED_HOSTS=
 ```
 
 Only allow internal upstream hosts when required. This helps reduce SSRF-style risk from misconfigured proxy repositories.
