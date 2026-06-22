@@ -1,4 +1,4 @@
-# nexus-plus MySQL ER 设计
+# kkrepo MySQL ER 设计
 
 当前 MySQL schema 以 `server/src/main/resources/db/migration/V1__init_schema.sql` 到 `V24__remove_legacy_oss_accelerator_engine.sql` 为准，并由 Flyway 在服务启动时执行。目标数据库是 MySQL 8 InnoDB。
 

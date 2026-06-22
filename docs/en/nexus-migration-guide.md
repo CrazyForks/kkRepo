@@ -1,8 +1,8 @@
 # Nexus Migration Guide
 
-This document describes prerequisites, execution order, incremental migration, and domain cutover when migrating from Nexus Repository to nexus-plus.
+This document describes prerequisites, execution order, incremental migration, and domain cutover when migrating from Nexus Repository to kkrepo.
 
-nexus-plus is compatible with Nexus's `/repository/<repo>/...` URL layout, client protocol behavior, and permission/authentication model. After migration, only point the original Nexus domain to nexus-plus. Maven, npm, PyPI, Go, Helm, NuGet, RubyGems, Yum, and other client configurations do not need to change.
+kkrepo is compatible with Nexus's `/repository/<repo>/...` URL layout, client protocol behavior, and permission/authentication model. After migration, only point the original Nexus domain to kkrepo. Maven, npm, PyPI, Go, Helm, NuGet, RubyGems, Yum, and other client configurations do not need to change.
 
 ## Migration Flow Overview
 
@@ -10,24 +10,24 @@ Migration runs in this order:
 
 | Order | Admin entrypoint | Operation | Result |
 | --- | --- | --- | --- |
-| 1 | Source Nexus | Enable Script REST API script creation | nexus-plus can read source data that regular REST APIs cannot directly provide |
+| 1 | Source Nexus | Enable Script REST API script creation | kkrepo can read source data that regular REST APIs cannot directly provide |
 | 2 | Nexus Metadata | Run `Run preflight` first, then run `Run migration` after blocking issues are resolved | Migrates system metadata such as users, roles, privileges, blob stores, and repository definitions |
 | 3 | Nexus Repository Data | Run `Sync metadata` | Scans source Nexus hosted repository assets and creates repository data migration tasks |
-| 4 | Nexus Repository Data | Run `Sync packages` | Migrates real blob/package data to nexus-plus |
+| 4 | Nexus Repository Data | Run `Sync packages` | Migrates real blob/package data to kkrepo |
 | 5 | Nexus Repository Data | Repeat incremental `Sync metadata` and `Sync packages` before go-live as needed | Migrates data added or updated during the cutover window |
-| 6 | DNS or reverse proxy | Point the original Nexus domain to nexus-plus | Clients switch to nexus-plus transparently |
+| 6 | DNS or reverse proxy | Point the original Nexus domain to kkrepo | Clients switch to kkrepo transparently |
 
 ## Before Migration
 
-- Confirm nexus-plus is deployed and connected to production MySQL.
-- Create a blob store named `default` in nexus-plus first. OSS/S3 blob store is recommended for production.
+- Confirm kkrepo is deployed and connected to production MySQL.
+- Create a blob store named `default` in kkrepo first. OSS/S3 blob store is recommended for production.
 - Confirm the source Nexus account has migration permissions. The source Nexus admin account is recommended.
 - Enable script capability on the source Nexus, as described in "Source Script Capability Configuration" below.
 - Keep source Nexus accessible during the migration window so multiple incremental sync rounds and follow-up checks can be performed.
 
 ## Metadata Migration
 
-Open the `Nexus Metadata` page in the nexus-plus `/admin/` console and fill in source Nexus URL, username, password, and version.
+Open the `Nexus Metadata` page in the kkrepo `/admin/` console and fill in source Nexus URL, username, password, and version.
 
 1. Click `Run preflight` to check source version, script capability, account permissions, repository/blob store/security configuration, and unsupported items.
 2. Resolve blocking issues based on preflight results, such as disabled script capability, insufficient account permissions, or local user password hashes that cannot be compensated.
@@ -37,10 +37,10 @@ Repository data migration depends on target repositories and blob stores already
 
 ## Repository Data Migration
 
-Repository data migration runs from the `Nexus Repository Data` page in the nexus-plus `/admin/` console and has two steps:
+Repository data migration runs from the `Nexus Repository Data` page in the kkrepo `/admin/` console and has two steps:
 
-1. Migrate repository metadata first: scan source Nexus hosted repository component, asset, path, size, content-type, timestamp, blob reference, and related metadata, then create migration tasks in nexus-plus MySQL.
-2. Migrate real blob data: download source Nexus asset content according to migration tasks and write it to the target blob store in nexus-plus.
+1. Migrate repository metadata first: scan source Nexus hosted repository component, asset, path, size, content-type, timestamp, blob reference, and related metadata, then create migration tasks in kkrepo MySQL.
+2. Migrate real blob data: download source Nexus asset content according to migration tasks and write it to the target blob store in kkrepo.
 
 ### First Migration
 
@@ -71,7 +71,7 @@ Already migrated paths are detected and skipped. Assets already existing on the 
 
 ### Interruption And Resume
 
-Migration tasks, repository scan cursors, asset states, and failure information are stored in MySQL. If nexus-plus restarts, the network is interrupted, source Nexus is temporarily unavailable, or the page is closed during migration, continue with:
+Migration tasks, repository scan cursors, asset states, and failure information are stored in MySQL. If kkrepo restarts, the network is interrupted, source Nexus is temporarily unavailable, or the page is closed during migration, continue with:
 
 - If repository metadata scanning is interrupted, click `Continue metadata`.
 - If real blob data migration is interrupted, click `Sync packages` again to continue unfinished items.
@@ -83,15 +83,15 @@ Migration is designed to be interruptible and resumable. Completed data remains 
 
 After full migration and the final incremental migration are complete, check browse/search, package downloads, checksums, and common client pull behavior for key repositories.
 
-After confirming there are no issues, point the original Nexus domain to nexus-plus through DNS or a reverse proxy. Because nexus-plus is compatible with Nexus's `/repository/<repo>/...` URL layout, client protocols, and permission/authentication model, clients do not need to modify Maven settings, npm registry, PyPI index-url, Go GOPROXY, Helm repo, or similar configuration.
+After confirming there are no issues, point the original Nexus domain to kkrepo through DNS or a reverse proxy. Because kkrepo is compatible with Nexus's `/repository/<repo>/...` URL layout, client protocols, and permission/authentication model, clients do not need to modify Maven settings, npm registry, PyPI index-url, Go GOPROXY, Helm repo, or similar configuration.
 
 After cutover, keep the source Nexus for an observation period, and disable source script capability after confirming no further compensation migration is needed.
 
 ## Source Script Capability Configuration
 
-Before migrating from Nexus to nexus-plus, the source Nexus must allow temporary Groovy scripts to be created and executed through the Script REST API.
+Before migrating from Nexus to kkrepo, the source Nexus must allow temporary Groovy scripts to be created and executed through the Script REST API.
 
-The nexus-plus migration flow temporarily creates scripts on the source Nexus to compensate for data that regular Nexus REST APIs cannot directly read, such as local user password hashes, API key compatibility information, and hosted repository asset pagination discovery. After script execution completes, nexus-plus attempts to delete the temporary scripts.
+The kkrepo migration flow temporarily creates scripts on the source Nexus to compensate for data that regular Nexus REST APIs cannot directly read, such as local user password hashes, API key compatibility information, and hosted repository asset pagination discovery. After script execution completes, kkrepo attempts to delete the temporary scripts.
 
 ### Applicability
 
@@ -183,7 +183,7 @@ curl -u '<admin-user>:<admin-password>' \
   -H 'Content-Type: application/json' \
   -X POST 'http://<nexus-host>:8081/service/rest/v1/script' \
   -d '{
-    "name": "nexus-plus-script-check",
+    "name": "kkrepo-script-check",
     "type": "groovy",
     "content": "return \"ok\""
   }'
@@ -193,10 +193,10 @@ If the response is a success status such as 204, 200, or 201, script creation is
 
 ```bash
 curl -u '<admin-user>:<admin-password>' \
-  -X DELETE 'http://<nexus-host>:8081/service/rest/v1/script/nexus-plus-script-check'
+  -X DELETE 'http://<nexus-host>:8081/service/rest/v1/script/kkrepo-script-check'
 ```
 
-You can also run Nexus Metadata preflight directly in the nexus-plus admin page. If script capability is disabled, the source usually returns `410 Gone` when creating a script and reports that script creation or update is disabled.
+You can also run Nexus Metadata preflight directly in the kkrepo admin page. If script capability is disabled, the source usually returns `410 Gone` when creating a script and reports that script creation or update is disabled.
 
 ## Migration Account Permissions
 
@@ -219,7 +219,7 @@ Script capability is high risk and should only be enabled during the migration w
    ```
 
 2. Restart source Nexus.
-3. Confirm there are no remaining `nexus-plus-*` temporary scripts. If any remain, delete them through the Script REST API.
+3. Confirm there are no remaining `kkrepo-*` temporary scripts. If any remain, delete them through the Script REST API.
 
 ## FAQ
 

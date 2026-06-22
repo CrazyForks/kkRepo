@@ -5,12 +5,12 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.github.klboke</groupId>
-    <artifactId>nexus-plus</artifactId>
+    <artifactId>kkrepo</artifactId>
     <version>0.1.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <artifactId>nexus-plus-admin-ui</artifactId>
-  <name>nexus-plus-admin-ui</name>
+  <artifactId>kkrepo-admin-ui</artifactId>
+  <name>kkrepo-admin-ui</name>
   <dependencies>
     <dependency>
       <groupId>org.springframework</groupId>

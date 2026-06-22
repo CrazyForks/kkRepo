@@ -1,4 +1,4 @@
-# nexus-plus Agent 指南
+# kkrepo Agent 指南
 
 本项目由 Infra 在 AI 辅助下实现。必须把 Nexus 当作兼容性参考，而不是凭记忆重新发明行为。
 
@@ -27,15 +27,15 @@
 对每个协议功能：
 
 1. 新增或更新面向 Nexus 参考实例运行的兼容性测试。
-2. 在 `nexus-plus` 中实现最小兼容行为。
+2. 在 `kkrepo` 中实现最小兼容行为。
 3. 对比 HTTP 状态、相关 header、响应体语义、生成的元数据、checksum 和真实客户端行为。
 4. 只有在协议允许时，才规范化 host、timestamp、排序或生成 ID 等非确定性值。
 
 ## 构建与测试注意事项
 
-- 跑 `server` 模块的编译或测试时，默认带上 `-am`，例如 `mvn -pl server -am test` 或 `mvn -pl server -am -Dtest=RepositorySecurityFilterTest -Dsurefire.failIfNoSpecifiedTests=false test`。不要单独跑 `mvn -pl server ...`，否则 Maven 可能命中本地仓库里过期或缺失的 `0.1.0` 模块缓存，误报类似 `nexus-plus-storage-file` 缺失的依赖解析错误。
+- 跑 `server` 模块的编译或测试时，默认带上 `-am`，例如 `mvn -pl server -am test` 或 `mvn -pl server -am -Dtest=RepositorySecurityFilterTest -Dsurefire.failIfNoSpecifiedTests=false test`。不要单独跑 `mvn -pl server ...`，否则 Maven 可能命中本地仓库里过期或缺失的 `0.1.0` 模块缓存，误报类似 `kkrepo-storage-file` 缺失的依赖解析错误。
 - 指定单个 server 测试并使用 `-am` 时，加上 `-Dsurefire.failIfNoSpecifiedTests=false`，避免上游依赖模块因为没有匹配测试类而让 reactor 提前失败。
-- 覆盖本地 38090 运行容器的 `/app/nexus-plus.jar` 前，必须先生成 Spring Boot 可执行 jar，例如 `mvn -pl server -am -DskipTests package spring-boot:repackage`。普通 `server` 模块 jar 没有可执行入口，复制进容器后会报 `no main manifest attribute, in /app/nexus-plus.jar` 并导致服务启动失败。
+- 覆盖本地 38090 运行容器的 `/app/kkrepo.jar` 前，必须先生成 Spring Boot 可执行 jar，例如 `mvn -pl server -am -DskipTests package spring-boot:repackage`。普通 `server` 模块 jar 没有可执行入口，复制进容器后会报 `no main manifest attribute, in /app/kkrepo.jar` 并导致服务启动失败。
 
 ## 模块职责
 
@@ -56,7 +56,7 @@
 - `admin-ui`：由 Spring Boot 服务提供的静态运维管理控制台。
 - `browse-ui`：由 Spring Boot 服务提供的用户侧仓库浏览器。
 - `server`：Spring Boot 运行时入口。
-- `compat-test`：面向 Nexus 和 nexus-plus 的黑盒兼容性测试。
+- `compat-test`：面向 Nexus 和 kkrepo 的黑盒兼容性测试。
 
 ## 设计约束
 

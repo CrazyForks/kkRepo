@@ -1,6 +1,6 @@
 # 兼容性矩阵
 
-本文汇总 nexus-plus 当前公开兼容面。这里关注的是用户可见行为：客户端命令、HTTP 路径、仓库 recipe、迁移支持和已知限制。除非 Nexus 内部机制会影响客户端行为，否则不把内部实现细节作为兼容目标。
+本文汇总 kkrepo 当前公开兼容面。这里关注的是用户可见行为：客户端命令、HTTP 路径、仓库 recipe、迁移支持和已知限制。除非 Nexus 内部机制会影响客户端行为，否则不把内部实现细节作为兼容目标。
 
 更详细的验证流程见 [Nexus 兼容性测试说明](nexus-compatibility-testing.md)。
 
@@ -62,7 +62,7 @@ Docker / OCI 比较特殊，因为 Docker 客户端使用 registry `/v2/...` 路
 
 ## 迁移兼容
 
-nexus-plus 把迁移作为产品能力，而不是一次性脚本：
+kkrepo 把迁移作为产品能力，而不是一次性脚本：
 
 - 元数据迁移覆盖用户、角色、权限、blob store、repository 定义和相关兼容数据。
 - 仓库数据迁移默认扫描 hosted 仓库。
@@ -74,7 +74,7 @@ nexus-plus 把迁移作为产品能力，而不是一次性脚本：
 
 ## 已知限制
 
-- nexus-plus 不是 Nexus 内部机制的完整复刻。Karaf、OSGi、OrientDB、内嵌 Elasticsearch 和 Nexus task 子系统不是兼容目标。
+- kkrepo 不是 Nexus 内部机制的完整复刻。Karaf、OSGi、OrientDB、内嵌 Elasticsearch 和 Nexus task 子系统不是兼容目标。
 - Docker / OCI Registry 支持正在开发中，当前还不是已完成仓库格式。
 - Go 不支持 hosted 上传；Go module proxy 行为以读取代理为主。
 - 不承诺覆盖每一个 Nexus UI endpoint。只有在支持用户工作流或迁移兼容需要时，才补对应 endpoint。
@@ -85,11 +85,11 @@ nexus-plus 把迁移作为产品能力，而不是一次性脚本：
 
 提交 Nexus compatibility issue，并包含：
 
-- Nexus 版本和 nexus-plus 版本或 commit。
+- Nexus 版本和 kkrepo 版本或 commit。
 - 仓库格式和 recipe。
 - 精确客户端命令或 HTTP 请求。
 - Nexus 的状态码、header 和响应体语义。
-- nexus-plus 的状态码、header 和响应体语义。
+- kkrepo 的状态码、header 和响应体语义。
 - 对真实客户端的影响。
 
 普通兼容差异可以用公开 issue。可利用的安全问题请按 [SECURITY.md](../../SECURITY.md) 私下报告。

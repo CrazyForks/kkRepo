@@ -1,6 +1,6 @@
 # Nexus 兼容性测试说明
 
-nexus-plus 的目标不是重新发明一套制品仓库行为，而是在客户端协议、权限认证模型和 `/repository/<repo>/...` URL 布局上尽量兼容 Nexus。兼容性验证分为项目内黑盒测试、迁移后的镜像流量观测和生产规模验证三层。
+kkrepo 的目标不是重新发明一套制品仓库行为，而是在客户端协议、权限认证模型和 `/repository/<repo>/...` URL 布局上尽量兼容 Nexus。兼容性验证分为项目内黑盒测试、迁移后的镜像流量观测和生产规模验证三层。
 
 ## 项目内兼容性测试模块
 
@@ -10,7 +10,7 @@ nexus-plus 的目标不是重新发明一套制品仓库行为，而是在客户
 compat-test/
 ```
 
-`compat-test` 面向真实 Nexus 参考实例和 nexus-plus 实例做黑盒对比，覆盖协议请求、写入行为、管理接口形态、权限行为和部分性能 smoke test。测试不会依赖 Nexus 内部实现，而是对比客户端真实可见的行为，例如：
+`compat-test` 面向真实 Nexus 参考实例和 kkrepo 实例做黑盒对比，覆盖协议请求、写入行为、管理接口形态、权限行为和部分性能 smoke test。测试不会依赖 Nexus 内部实现，而是对比客户端真实可见的行为，例如：
 
 - HTTP status
 - 关键 response header
@@ -28,19 +28,19 @@ compat-test/
 mvn -pl compat-test -am test
 ```
 
-默认情况下，依赖真实 Nexus 和 nexus-plus 地址的 live black-box 测试会跳过，避免本地和 CI 在没有参考实例时变得不稳定。
+默认情况下，依赖真实 Nexus 和 kkrepo 地址的 live black-box 测试会跳过，避免本地和 CI 在没有参考实例时变得不稳定。
 
 ## 黑盒对比测试
 
-运行 live black-box 测试时，需要同时提供 Nexus 参考实例和 nexus-plus 候选实例：
+运行 live black-box 测试时，需要同时提供 Nexus 参考实例和 kkrepo 候选实例：
 
 ```bash
 NEXUS_COMPAT_BASE_URL=http://localhost:28090/ \
 NEXUS_COMPAT_USERNAME=admin \
 NEXUS_COMPAT_PASSWORD=123456 \
-NEXUS_PLUS_COMPAT_BASE_URL=http://127.0.0.1:18090 \
-NEXUS_PLUS_COMPAT_USERNAME=admin \
-NEXUS_PLUS_COMPAT_PASSWORD=123456 \
+KKREPO_COMPAT_BASE_URL=http://127.0.0.1:18090 \
+KKREPO_COMPAT_USERNAME=admin \
+KKREPO_COMPAT_PASSWORD=123456 \
 mvn -pl compat-test -am \
   -DfailIfNoTests=false \
   -Dsurefire.failIfNoSpecifiedTests=false \
@@ -58,18 +58,18 @@ COMPAT_WRITE_ENABLED=true
 
 ## 流量镜像验证
 
-除项目内的黑盒兼容测试外，我们在 Nexus 迁移到 nexus-plus 后，还在 Istio 侧把真实线上流量 100% 镜像到 nexus-plus，用来观测 nexus-plus 对真实客户端请求的响应情况。
+除项目内的黑盒兼容测试外，我们在 Nexus 迁移到 kkrepo 后，还在 Istio 侧把真实线上流量 100% 镜像到 kkrepo，用来观测 kkrepo 对真实客户端请求的响应情况。
 
 这个阶段的验证目标是：
 
-- 确认 Maven、npm、PyPI、Go、Helm 等真实客户端请求都能被 nexus-plus 正确识别。
-- 对比 Nexus 主链路和 nexus-plus 镜像链路的 HTTP status、错误类型和关键响应行为。
+- 确认 Maven、npm、PyPI、Go、Helm 等真实客户端请求都能被 kkrepo 正确识别。
+- 对比 Nexus 主链路和 kkrepo 镜像链路的 HTTP status、错误类型和关键响应行为。
 - 观察 proxy 回源、blob 存储、权限认证、metadata/index 重建在真实流量下的稳定性。
 - 发现 `compat-test` 未覆盖的边缘请求，例如客户端特殊 header、老版本客户端行为、CI 插件探测请求和偶发代理请求。
 
-Istio 流量镜像只复制请求到 nexus-plus，客户端仍接收主链路响应，因此可以在不影响客户端的情况下观察 nexus-plus 的真实兼容性表现。镜像验证期间，重点结合以下信息判断是否存在兼容性问题：
+Istio 流量镜像只复制请求到 kkrepo，客户端仍接收主链路响应，因此可以在不影响客户端的情况下观察 kkrepo 的真实兼容性表现。镜像验证期间，重点结合以下信息判断是否存在兼容性问题：
 
-- nexus-plus 应用日志
+- kkrepo 应用日志
 - Istio access log
 - Prometheus 指标
 - Grafana dashboard
@@ -81,7 +81,7 @@ Istio 流量镜像只复制请求到 nexus-plus，客户端仍接收主链路响
 
 ## 生产规模验证
 
-nexus-plus 已经经过一轮真实生产规模验证。验证场景主要使用以下 5 种仓库类型：
+kkrepo 已经经过一轮真实生产规模验证。验证场景主要使用以下 5 种仓库类型：
 
 - Maven
 - npm
@@ -100,7 +100,7 @@ nexus-plus 已经经过一轮真实生产规模验证。验证场景主要使用
 | hosted 仓库迁移规模 | 约 `50W` 个包 |
 | hosted 仓库迁移耗时 | 一个晚上完成 |
 
-这组数据用于说明 nexus-plus 在真实业务流量和迁移规模下的验证结果，不代表固定 SLA。实际吞吐和延迟仍会受到 MySQL 规格、OSS/S3 性能、网络、proxy 上游质量、仓库数量、包大小和副本数影响。
+这组数据用于说明 kkrepo 在真实业务流量和迁移规模下的验证结果，不代表固定 SLA。实际吞吐和延迟仍会受到 MySQL 规格、OSS/S3 性能、网络、proxy 上游质量、仓库数量、包大小和副本数影响。
 
 ## 兼容性问题处理流程
 
@@ -108,8 +108,8 @@ nexus-plus 已经经过一轮真实生产规模验证。验证场景主要使用
 
 1. 先确认请求类型：仓库协议请求、管理 UI 请求、Script API 请求还是健康检查。
 2. 如果是仓库协议请求，优先在 `compat-test` 中补一个可复现的 Nexus 对比用例。
-3. 对比 Nexus 和 nexus-plus 的 status、header、响应体、metadata、checksum 和真实客户端行为。
-4. 在 nexus-plus 中实现最小兼容修复。
+3. 对比 Nexus 和 kkrepo 的 status、header、响应体、metadata、checksum 和真实客户端行为。
+4. 在 kkrepo 中实现最小兼容修复。
 5. 重新运行对应 `compat-test`，必要时再用镜像流量观察真实请求是否恢复。
 
 只有协议允许的非确定性字段才做归一化，例如 host、timestamp、排序或生成 ID。对于 checksum、metadata 语义、权限判定和客户端可见状态码，应尽量和 Nexus 对齐。

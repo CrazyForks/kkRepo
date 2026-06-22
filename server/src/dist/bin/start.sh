@@ -3,12 +3,12 @@ set -euo pipefail
 
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_APP_HOME="$(cd "$BIN_DIR/.." && pwd)"
-APP_HOME="${NEXUS_PLUS_HOME:-$DEFAULT_APP_HOME}"
-CONF_DIR="${NEXUS_PLUS_CONF_DIR:-$APP_HOME/conf}"
-LOG_DIR="${NEXUS_PLUS_LOG_DIR:-$APP_HOME/logs}"
-PID_FILE="${NEXUS_PLUS_PID_FILE:-$LOG_DIR/nexus-plus.pid}"
-CONSOLE_LOG="${NEXUS_PLUS_CONSOLE_LOG:-$LOG_DIR/console.log}"
-JAR_FILE="${NEXUS_PLUS_JAR_FILE:-$APP_HOME/lib/nexus-plus.jar}"
+APP_HOME="${KKREPO_HOME:-$DEFAULT_APP_HOME}"
+CONF_DIR="${KKREPO_CONF_DIR:-$APP_HOME/conf}"
+LOG_DIR="${KKREPO_LOG_DIR:-$APP_HOME/logs}"
+PID_FILE="${KKREPO_PID_FILE:-$LOG_DIR/kkrepo.pid}"
+CONSOLE_LOG="${KKREPO_CONSOLE_LOG:-$LOG_DIR/console.log}"
+JAR_FILE="${KKREPO_JAR_FILE:-$APP_HOME/lib/kkrepo.jar}"
 JAVA_BIN="${JAVA_HOME:+$JAVA_HOME/bin/}java"
 
 is_running() {
@@ -38,7 +38,7 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
-export NEXUS_PLUS_HOME="$APP_HOME"
+export KKREPO_HOME="$APP_HOME"
 
 COMMAND=("$JAVA_BIN")
 if [[ -n "${JAVA_OPTS:-}" ]]; then
@@ -50,7 +50,7 @@ COMMAND+=(
   "--spring.config.additional-location=optional:file:$CONF_DIR/"
 )
 
-echo "[start] starting nexus-plus"
+echo "[start] starting kkrepo"
 echo "[start] home=$APP_HOME"
 echo "[start] config=$CONF_DIR/application.properties"
 echo "[start] log=$CONSOLE_LOG"

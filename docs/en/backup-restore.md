@@ -1,6 +1,6 @@
 # Backup And Restore Guide
 
-nexus-plus stores metadata and coordination state in MySQL, while artifact bytes live in blob storage. A recoverable production deployment must back up both.
+kkrepo stores metadata and coordination state in MySQL, while artifact bytes live in blob storage. A recoverable production deployment must back up both.
 
 ## What Must Be Backed Up
 
@@ -54,8 +54,8 @@ mysqldump \
   --single-transaction \
   --routines \
   --triggers \
-  --databases nexus_plus \
-  > nexus_plus-$(date +%Y%m%d%H%M%S).sql
+  --databases kkrepo \
+  > kkrepo-$(date +%Y%m%d%H%M%S).sql
 ```
 
 Managed MySQL services often provide snapshot and point-in-time recovery. Prefer managed PITR for production when available.
@@ -76,10 +76,10 @@ Do not configure lifecycle deletion so aggressively that recently referenced obj
 
 Recommended restore sequence:
 
-1. Stop nexus-plus replicas or block repository write traffic.
+1. Stop kkrepo replicas or block repository write traffic.
 2. Restore MySQL to the selected recovery point.
 3. Restore or verify blob storage so all referenced objects exist.
-4. Start one nexus-plus replica.
+4. Start one kkrepo replica.
 5. Verify `/actuator/health`.
 6. Verify admin UI and browse UI.
 7. Pull representative artifacts from key repositories.
@@ -110,7 +110,7 @@ At least periodically:
 1. Create a fresh environment.
 2. Restore a production-like MySQL backup.
 3. Point it to a restored or replicated blob store.
-4. Start nexus-plus with the same encryption secrets.
+4. Start kkrepo with the same encryption secrets.
 5. Verify representative client operations.
 6. Record time taken and gaps found.
 
@@ -120,7 +120,7 @@ The encryption secrets must match the source environment. Without them, encrypte
 
 Before a Nexus migration:
 
-- Back up target nexus-plus MySQL.
+- Back up target kkrepo MySQL.
 - Back up or snapshot the target blob store if it already contains important data.
 - Export or record source Nexus version and repository list.
 - Keep source Nexus unchanged until the final cutover is accepted.
@@ -135,7 +135,7 @@ During migration:
 After migration:
 
 - Run a final incremental sync before cutover.
-- Back up nexus-plus after acceptance.
+- Back up kkrepo after acceptance.
 - Keep the source Nexus available for a rollback window when practical.
 
 ## Common Restore Problems
@@ -144,8 +144,8 @@ After migration:
 | --- | --- | --- |
 | Artifact metadata exists but download fails | Blob object missing from restored storage | Restore missing object versions or restore to a later blob backup |
 | Admin login fails after restore | Wrong database, wrong realm state, or missing encryption secret | Verify datasource and secrets |
-| Blob store credentials cannot be read | `NEXUS_PLUS_CREDENTIAL_SECRET` changed | Restore the original secret or reconfigure blob stores |
-| API keys no longer work | `NEXUS_PLUS_API_KEY_PAYLOAD_SECRET` changed or database restored to old state | Restore the original secret or reissue API keys |
+| Blob store credentials cannot be read | `KKREPO_CREDENTIAL_SECRET` changed | Restore the original secret or reconfigure blob stores |
+| API keys no longer work | `KKREPO_API_KEY_PAYLOAD_SECRET` changed or database restored to old state | Restore the original secret or reissue API keys |
 | New uploads fail | Blob store permissions or bucket policy changed | Run blob store health probes and verify IAM policy |
 | Migration job appears stuck | Database restored while a job was running | Review migration state and retry failed or unfinished work from the UI |
 

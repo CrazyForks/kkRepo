@@ -1,4 +1,4 @@
--- nexus-plus V3: performance indexes for the million-component scale.
+-- kkrepo V3: performance indexes for the million-component scale.
 --   * component(repository_id, namespace, name) — GA metadata rebuild reads all versions of a
 --     groupId/artifactId pair every PUT. The existing indexes don't cover this filter, so the
 --     planner falls back to a scan of the repository's components.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start nexus-plus server in dev profile with hot reload.
+# Start kkrepo server in dev profile with hot reload.
 #   - Static assets (HTML/CSS/JS) served directly from src/, refresh browser to see changes
 #   - Java class changes: open a 2nd terminal and run `scripts/recompile.sh` (or use IDE auto-build)
 #     to trigger devtools restart of the Spring context
@@ -12,8 +12,8 @@ cd "$ROOT"
 LOG_DIR="$ROOT/logs"
 PID_FILE="$LOG_DIR/server.pid"
 LOG_FILE="$LOG_DIR/server.log"
-PORT="${NEXUS_PLUS_PORT:-18090}"
-START_TIMEOUT_SECONDS="${NEXUS_PLUS_START_TIMEOUT_SECONDS:-90}"
+PORT="${KKREPO_PORT:-18090}"
+START_TIMEOUT_SECONDS="${KKREPO_START_TIMEOUT_SECONDS:-90}"
 
 mkdir -p "$LOG_DIR"
 
@@ -29,7 +29,7 @@ command_for_pid() {
 is_repo_process() {
   local command
   command="$(command_for_pid "$1")"
-  [[ "$command" == *"$ROOT"* || "$command" == *"NexusPlusApplication"* ]]
+  [[ "$command" == *"$ROOT"* || "$command" == *"KkRepoApplication"* ]]
 }
 
 port_pids() {
@@ -69,7 +69,7 @@ fi
 PORT_PIDS="$(port_pids || true)"
 if [[ -n "$PORT_PIDS" ]]; then
   echo "[dev] port $PORT is already in use by pid(s): $PORT_PIDS"
-  echo "[dev] run scripts/stop.sh first if this is a stale nexus-plus process."
+  echo "[dev] run scripts/stop.sh first if this is a stale kkrepo process."
   exit 1
 fi
 
@@ -79,7 +79,7 @@ mvn -pl server -am compile -q
 : >"$LOG_FILE"
 {
   echo
-  echo "[dev] ===== $(date '+%Y-%m-%d %H:%M:%S') starting nexus-plus ====="
+  echo "[dev] ===== $(date '+%Y-%m-%d %H:%M:%S') starting kkrepo ====="
   echo "[dev] cwd=$ROOT"
   echo "[dev] command=mvn -pl server -am -q spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.fork=false -Dspring-boot.run.arguments=--server.port=$PORT"
 } >>"$LOG_FILE"

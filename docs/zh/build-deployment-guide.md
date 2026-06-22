@@ -1,6 +1,6 @@
 # 构建部署指南
 
-本文档说明 nexus-plus 的本地启动、发行构建、压缩包部署、生产部署架构和资源规格建议。开发热重载和协议测试见 [开发指南](development-guide.md)。
+本文档说明 kkrepo 的本地启动、发行构建、压缩包部署、生产部署架构和资源规格建议。开发热重载和协议测试见 [开发指南](development-guide.md)。
 
 ## 前置要求
 
@@ -13,16 +13,16 @@
 
 ## Docker Compose 快速试用
 
-如果只是想快速体验，可以用公开发行镜像一条命令拉起 nexus-plus 和 MySQL：
+如果只是想快速体验，可以用公开发行镜像一条命令拉起 kkrepo 和 MySQL：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quickstart.sh | bash
+curl -fsSL https://raw.githubusercontent.com/klboke/kkrepo/main/scripts/quickstart.sh | bash
 ```
 
 该脚本会逐步打印日志并执行：
 
 1. 检查 Docker、Docker Compose 和 curl。
-2. 创建 `nexus-plus-quickstart/` 工作目录。
+2. 创建 `kkrepo-quickstart/` 工作目录。
 3. 生成 `.env`，保存镜像 tag、端口和本地试用密钥。
 4. 下载 `docker-compose.quickstart.yml`。
 5. 检查宿主机端口占用。
@@ -32,13 +32,13 @@ curl -fsSL https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quic
 如果希望先检查脚本内容，可以改用两步执行：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quickstart.sh
+curl -fsSLO https://raw.githubusercontent.com/klboke/kkrepo/main/scripts/quickstart.sh
 bash quickstart.sh
 ```
 
 默认会启动：
 
-- `ghcr.io/klboke/nexus-plus:0.1.0`
+- `ghcr.io/klboke/kkrepo:0.1.0`
 - MySQL 8.0
 - 用于本地试用的持久化 MySQL volume 和 File blob storage volume
 
@@ -63,12 +63,12 @@ docker compose -f docker-compose.quickstart.yml down
 docker compose -f docker-compose.quickstart.yml down -v
 ```
 
-脚本生成的 `.env` 加密密钥仅用于本地试用。对外部署时必须替换 `NEXUS_PLUS_CREDENTIAL_SECRET` 和 `NEXUS_PLUS_API_KEY_PAYLOAD_SECRET`，并使用独立 MySQL 与 OSS/S3 blob store。
+脚本生成的 `.env` 加密密钥仅用于本地试用。对外部署时必须替换 `KKREPO_CREDENTIAL_SECRET` 和 `KKREPO_API_KEY_PAYLOAD_SECRET`，并使用独立 MySQL 与 OSS/S3 blob store。
 
 如果默认端口被占用，可以覆盖端口后启动：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quickstart.sh | NEXUS_PLUS_HTTP_PORT=19190 NEXUS_PLUS_MANAGEMENT_PORT=19191 bash
+curl -fsSL https://raw.githubusercontent.com/klboke/kkrepo/main/scripts/quickstart.sh | KKREPO_HTTP_PORT=19190 KKREPO_MANAGEMENT_PORT=19191 bash
 ```
 
 ## 源码本地快速启动
@@ -76,25 +76,25 @@ curl -fsSL https://raw.githubusercontent.com/klboke/nexus-plus/main/scripts/quic
 创建本地数据库和账号：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS nexus_plus DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'nexus_plus'@'%' IDENTIFIED BY 'nexus_plus';
-GRANT ALL PRIVILEGES ON nexus_plus.* TO 'nexus_plus'@'%';
+CREATE DATABASE IF NOT EXISTS kkrepo DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'kkrepo'@'%' IDENTIFIED BY 'kkrepo';
+GRANT ALL PRIVILEGES ON kkrepo.* TO 'kkrepo'@'%';
 FLUSH PRIVILEGES;
 ```
 
-默认配置连接 `127.0.0.1:13306/nexus_plus`。如果本地 MySQL 使用其他端口或账号，可以通过 Spring Boot 环境变量覆盖：
+默认配置连接 `127.0.0.1:13306/kkrepo`。如果本地 MySQL 使用其他端口或账号，可以通过 Spring Boot 环境变量覆盖：
 
 ```bash
-export SPRING_DATASOURCE_URL='jdbc:mysql://127.0.0.1:3306/nexus_plus?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai'
-export SPRING_DATASOURCE_USERNAME=nexus_plus
-export SPRING_DATASOURCE_PASSWORD=nexus_plus
+export SPRING_DATASOURCE_URL='jdbc:mysql://127.0.0.1:3306/kkrepo?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai'
+export SPRING_DATASOURCE_USERNAME=kkrepo
+export SPRING_DATASOURCE_PASSWORD=kkrepo
 ```
 
 构建并启动：
 
 ```bash
 mvn -pl server -am -DskipTests package spring-boot:repackage
-java -jar server/target/nexus-plus-server-*.jar
+java -jar server/target/kkrepo-server-*.jar
 ```
 
 启动后访问：
@@ -117,23 +117,23 @@ mvn -pl server -am -DskipTests package spring-boot:repackage
 产物路径：
 
 ```text
-server/target/nexus-plus-server-<version>.jar
+server/target/kkrepo-server-<version>.jar
 ```
 
-注意：普通 `server` 模块 jar 没有 Spring Boot 可执行入口。需要复制或部署 `server/target/nexus-plus-server-*.jar` 时，必须先执行 `spring-boot:repackage`。
+注意：普通 `server` 模块 jar 没有 Spring Boot 可执行入口。需要复制或部署 `server/target/kkrepo-server-*.jar` 时，必须先执行 `spring-boot:repackage`。
 
 ## Docker 镜像
 
 拉取首个公开发行镜像：
 
 ```bash
-docker pull ghcr.io/klboke/nexus-plus:0.1.0
+docker pull ghcr.io/klboke/kkrepo:0.1.0
 ```
 
 也可以使用 `latest` 跟随最新公开发行版本：
 
 ```bash
-docker pull ghcr.io/klboke/nexus-plus:latest
+docker pull ghcr.io/klboke/kkrepo:latest
 ```
 
 构建默认镜像：
@@ -145,7 +145,7 @@ docker pull ghcr.io/klboke/nexus-plus:latest
 指定镜像 tag：
 
 ```bash
-./scripts/build-docker-image.sh nexus-plus:local
+./scripts/build-docker-image.sh kkrepo:local
 ```
 
 容器化部署仍建议使用独立 MySQL 和 OSS/S3 blob store，不建议把容器本地文件系统作为长期生产 blob 存储。
@@ -163,8 +163,8 @@ docker pull ghcr.io/klboke/nexus-plus:latest
 构建完成后会生成：
 
 ```text
-server/target/nexus-plus-<release-version>.tar.gz
-server/target/nexus-plus-<release-version>.zip
+server/target/kkrepo-<release-version>.tar.gz
+server/target/kkrepo-<release-version>.zip
 ```
 
 如果后续开发版本使用 Maven `-SNAPSHOT` 后缀，构建脚本会自动在压缩包文件名和解压目录中去掉该后缀。
@@ -172,7 +172,7 @@ server/target/nexus-plus-<release-version>.zip
 压缩包结构：
 
 ```text
-nexus-plus-<release-version>/
+kkrepo-<release-version>/
   bin/
     start.sh
     stop.sh
@@ -181,7 +181,7 @@ nexus-plus-<release-version>/
   conf/
     application.properties
   lib/
-    nexus-plus.jar
+    kkrepo.jar
   logs/
   data/
 ```
@@ -191,8 +191,8 @@ nexus-plus-<release-version>/
 解压：
 
 ```bash
-tar -xzf nexus-plus-<release-version>.tar.gz
-cd nexus-plus-<release-version>
+tar -xzf kkrepo-<release-version>.tar.gz
+cd kkrepo-<release-version>
 ```
 
 编辑外部配置：
@@ -207,12 +207,12 @@ vi conf/application.properties
 server.port=8080
 management.server.port=8081
 
-spring.datasource.url=jdbc:mysql://127.0.0.1:3306/nexus_plus?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
-spring.datasource.username=nexus_plus
-spring.datasource.password=nexus_plus
+spring.datasource.url=jdbc:mysql://127.0.0.1:3306/kkrepo?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+spring.datasource.username=kkrepo
+spring.datasource.password=kkrepo
 
-nexus-plus.security.encryption.credential-secret=CHANGE_ME_credential_secret_at_least_32_chars
-nexus-plus.security.encryption.api-key-payload-secret=CHANGE_ME_api_key_payload_secret_at_least_32_chars
+kkrepo.security.encryption.credential-secret=CHANGE_ME_credential_secret_at_least_32_chars
+kkrepo.security.encryption.api-key-payload-secret=CHANGE_ME_api_key_payload_secret_at_least_32_chars
 ```
 
 `credential-secret` 和 `api-key-payload-secret` 必须替换成稳定的强随机字符串。它们用于加密 blob store 凭据、认证 realm 密钥和 API key payload；已经写入数据后不要随意更换。
@@ -226,15 +226,15 @@ bin/restart.sh
 bin/stop.sh
 ```
 
-启动脚本默认以解压目录作为 `NEXUS_PLUS_HOME`。可以通过环境变量覆盖常用路径：
+启动脚本默认以解压目录作为 `KKREPO_HOME`。可以通过环境变量覆盖常用路径：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `NEXUS_PLUS_HOME` | 解压目录 | 应用主目录 |
-| `NEXUS_PLUS_CONF_DIR` | `$NEXUS_PLUS_HOME/conf` | 外部配置目录 |
-| `NEXUS_PLUS_LOG_DIR` | `$NEXUS_PLUS_HOME/logs` | 日志目录 |
-| `NEXUS_PLUS_PID_FILE` | `$NEXUS_PLUS_LOG_DIR/nexus-plus.pid` | PID 文件 |
-| `NEXUS_PLUS_JAR_FILE` | `$NEXUS_PLUS_HOME/lib/nexus-plus.jar` | 可执行 jar |
+| `KKREPO_HOME` | 解压目录 | 应用主目录 |
+| `KKREPO_CONF_DIR` | `$KKREPO_HOME/conf` | 外部配置目录 |
+| `KKREPO_LOG_DIR` | `$KKREPO_HOME/logs` | 日志目录 |
+| `KKREPO_PID_FILE` | `$KKREPO_LOG_DIR/kkrepo.pid` | PID 文件 |
+| `KKREPO_JAR_FILE` | `$KKREPO_HOME/lib/kkrepo.jar` | 可执行 jar |
 | `JAVA_OPTS` | 空 | JVM 参数 |
 
 示例：
@@ -250,18 +250,18 @@ bin/start.sh
 
 ```ini
 [Unit]
-Description=nexus-plus
+Description=kkrepo
 After=network.target
 
 [Service]
 Type=forking
-User=nexusplus
-Group=nexusplus
+User=kkrepo
+Group=kkrepo
 Environment="JAVA_OPTS=-Xms2g -Xmx4g -XX:+UseG1GC"
-WorkingDirectory=/opt/nexus-plus
-ExecStart=/opt/nexus-plus/bin/start.sh
-ExecStop=/opt/nexus-plus/bin/stop.sh
-PIDFile=/opt/nexus-plus/logs/nexus-plus.pid
+WorkingDirectory=/opt/kkrepo
+ExecStart=/opt/kkrepo/bin/start.sh
+ExecStop=/opt/kkrepo/bin/stop.sh
+PIDFile=/opt/kkrepo/logs/kkrepo.pid
 Restart=on-failure
 RestartSec=10
 
@@ -271,23 +271,23 @@ WantedBy=multi-user.target
 
 ## 生产部署架构
 
-生产部署建议使用多副本 nexus-plus 服务、独立 MySQL 和 OSS/S3 blob store：
+生产部署建议使用多副本 kkrepo 服务、独立 MySQL 和 OSS/S3 blob store：
 
 ```text
 Maven/npm/PyPI/Go/Helm/NuGet/RubyGems/Yum clients
         |
 DNS / Load Balancer / Reverse Proxy
         |
-nexus-plus replicas
+kkrepo replicas
         |---------------- MySQL 8
         |---------------- OSS / S3 blob store
 ```
 
-nexus-plus 运行时不依赖 OrientDB、内嵌 Elasticsearch 或本地持久化 blob 文件系统。仓库、组件、asset、用户、权限、token、审计、迁移状态和跨副本协调状态存储在 MySQL；大 blob 存储在 OSS/S3；进程内 TTL 缓存只作为可重建热缓存。
+kkrepo 运行时不依赖 OrientDB、内嵌 Elasticsearch 或本地持久化 blob 文件系统。仓库、组件、asset、用户、权限、token、审计、迁移状态和跨副本协调状态存储在 MySQL；大 blob 存储在 OSS/S3；进程内 TTL 缓存只作为可重建热缓存。
 
 ## 生产资源建议
 
-- nexus-plus 服务实例：生产环境建议单实例至少 2C4G；如果需要高可用，建议至少部署 2 个副本，并根据请求量继续横向扩容。
+- kkrepo 服务实例：生产环境建议单实例至少 2C4G；如果需要高可用，建议至少部署 2 个副本，并根据请求量继续横向扩容。
 - MySQL：生产环境建议至少 2C4G，使用独立 MySQL 实例，并按仓库数量、包数量、索引规模和迁移任务量扩容 CPU、内存、磁盘和 IOPS。
 - blob 存储：生产环境建议使用 OSS/S3；File blob store 更适合本地开发、测试或有强一致共享文件系统的特定部署。
 - 生产环境建议使用独立 MySQL 和独立 OSS/S3 bucket，不建议把 File blob store 作为长期生产存储。

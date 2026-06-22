@@ -1,15 +1,17 @@
+name: kkrepo-dev
+
 services:
   mysql:
     image: mysql:8.0
-    container_name: nexus-plus-mysql
+    container_name: kkrepo-mysql
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: nexus_plus
-      MYSQL_USER: nexus_plus
-      MYSQL_PASSWORD: nexus_plus
+      MYSQL_DATABASE: kkrepo
+      MYSQL_USER: kkrepo
+      MYSQL_PASSWORD: kkrepo
       TZ: Asia/Shanghai
     ports:
       - "13306:3306"
@@ -31,7 +33,7 @@ services:
 
   rustfs:
     image: rustfs/rustfs:latest
-    container_name: nexus-plus-rustfs
+    container_name: kkrepo-rustfs
     depends_on:
       rustfs-perms:
         condition: service_completed_successfully
