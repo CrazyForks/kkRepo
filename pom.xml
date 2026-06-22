@@ -5,12 +5,12 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.github.klboke</groupId>
-  <artifactId>nexus-plus</artifactId>
+  <artifactId>kkrepo</artifactId>
   <version>0.1.0</version>
   <packaging>pom</packaging>
 
-  <name>nexus-plus</name>
-  <description>Nexus-compatible self-hosted artifact repository.</description>
+  <name>kkRepo</name>
+  <description>Self-hosted artifact repository with migration-oriented compatibility support.</description>
 
   <modules>
     <module>core</module>
@@ -41,11 +41,11 @@
     <guava.version>33.6.0-jre</guava.version>
     <guice.version>7.0.0</guice.version>
     <maven.artifact.version>3.9.16</maven.artifact.version>
-    <aws.sdk.version>2.46.11</aws.sdk.version>
+    <aws.sdk.version>2.46.15</aws.sdk.version>
     <commons.compress.version>1.28.0</commons.compress.version>
-    <commons.lang3.version>3.18.0</commons.lang3.version>
+    <commons.lang3.version>3.20.0</commons.lang3.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
-    <nexus.plus.dist.version>${project.version}</nexus.plus.dist.version>
+    <kkrepo.dist.version>${project.version}</kkrepo.dist.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
@@ -112,87 +112,87 @@
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-core</artifactId>
+        <artifactId>kkrepo-core</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-storage-s3</artifactId>
+        <artifactId>kkrepo-storage-s3</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-storage-file</artifactId>
+        <artifactId>kkrepo-storage-file</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-cache</artifactId>
+        <artifactId>kkrepo-cache</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-maven</artifactId>
+        <artifactId>kkrepo-protocol-maven</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-npm</artifactId>
+        <artifactId>kkrepo-protocol-npm</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-pypi</artifactId>
+        <artifactId>kkrepo-protocol-pypi</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-go</artifactId>
+        <artifactId>kkrepo-protocol-go</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-helm</artifactId>
+        <artifactId>kkrepo-protocol-helm</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-docker</artifactId>
+        <artifactId>kkrepo-protocol-docker</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-nuget</artifactId>
+        <artifactId>kkrepo-protocol-nuget</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-rubygems</artifactId>
+        <artifactId>kkrepo-protocol-rubygems</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-protocol-yum</artifactId>
+        <artifactId>kkrepo-protocol-yum</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-migration-nexus</artifactId>
+        <artifactId>kkrepo-migration-nexus</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-persistence-mysql</artifactId>
+        <artifactId>kkrepo-persistence-mysql</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-admin-ui</artifactId>
+        <artifactId>kkrepo-admin-ui</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.klboke</groupId>
-        <artifactId>nexus-plus-browse-ui</artifactId>
+        <artifactId>kkrepo-browse-ui</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>

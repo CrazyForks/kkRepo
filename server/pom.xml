@@ -5,12 +5,12 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.github.klboke</groupId>
-    <artifactId>nexus-plus</artifactId>
+    <artifactId>kkrepo</artifactId>
     <version>0.1.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <artifactId>nexus-plus-server</artifactId>
-  <name>nexus-plus-server</name>
+  <artifactId>kkrepo-server</artifactId>
+  <name>kkrepo-server</name>
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -65,59 +65,59 @@
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-core</artifactId>
+      <artifactId>kkrepo-core</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-storage-s3</artifactId>
+      <artifactId>kkrepo-storage-s3</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-storage-file</artifactId>
+      <artifactId>kkrepo-storage-file</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-cache</artifactId>
+      <artifactId>kkrepo-cache</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-maven</artifactId>
+      <artifactId>kkrepo-protocol-maven</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-npm</artifactId>
+      <artifactId>kkrepo-protocol-npm</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-pypi</artifactId>
+      <artifactId>kkrepo-protocol-pypi</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-go</artifactId>
+      <artifactId>kkrepo-protocol-go</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-helm</artifactId>
+      <artifactId>kkrepo-protocol-helm</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-docker</artifactId>
+      <artifactId>kkrepo-protocol-docker</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-nuget</artifactId>
+      <artifactId>kkrepo-protocol-nuget</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-rubygems</artifactId>
+      <artifactId>kkrepo-protocol-rubygems</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-yum</artifactId>
+      <artifactId>kkrepo-protocol-yum</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-migration-nexus</artifactId>
+      <artifactId>kkrepo-migration-nexus</artifactId>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -130,15 +130,15 @@
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-persistence-mysql</artifactId>
+      <artifactId>kkrepo-persistence-mysql</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-admin-ui</artifactId>
+      <artifactId>kkrepo-admin-ui</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-browse-ui</artifactId>
+      <artifactId>kkrepo-browse-ui</artifactId>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -168,7 +168,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
-          <mainClass>com.github.klboke.nexusplus.server.NexusPlusApplication</mainClass>
+          <mainClass>com.github.klboke.kkrepo.server.KkRepoApplication</mainClass>
           <skip>false</skip>
         </configuration>
       </plugin>
@@ -179,7 +179,7 @@
           <descriptors>
             <descriptor>src/assembly/dist.xml</descriptor>
           </descriptors>
-          <finalName>nexus-plus-${nexus.plus.dist.version}</finalName>
+          <finalName>kkrepo-${kkrepo.dist.version}</finalName>
           <appendAssemblyId>false</appendAssemblyId>
         </configuration>
       </plugin>

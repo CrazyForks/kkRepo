@@ -10,11 +10,11 @@ SUITE="${1:-${LIVE_COMPAT_SUITE:-smoke}}"
 export NEXUS_COMPAT_BASE_URL="${NEXUS_COMPAT_BASE_URL:-http://127.0.0.1:28090}"
 export NEXUS_COMPAT_USERNAME="${NEXUS_COMPAT_USERNAME:-admin}"
 export NEXUS_COMPAT_PASSWORD="${NEXUS_COMPAT_PASSWORD:-123456}"
-export NEXUS_PLUS_COMPAT_BASE_URL="${NEXUS_PLUS_COMPAT_BASE_URL:-http://127.0.0.1:18090}"
-export NEXUS_PLUS_COMPAT_USERNAME="${NEXUS_PLUS_COMPAT_USERNAME:-admin}"
-export NEXUS_PLUS_COMPAT_PASSWORD="${NEXUS_PLUS_COMPAT_PASSWORD:-12345678}"
+export KKREPO_COMPAT_BASE_URL="${KKREPO_COMPAT_BASE_URL:-http://127.0.0.1:18090}"
+export KKREPO_COMPAT_USERNAME="${KKREPO_COMPAT_USERNAME:-admin}"
+export KKREPO_COMPAT_PASSWORD="${KKREPO_COMPAT_PASSWORD:-12345678}"
 export NEXUS_COMPAT_READ_REPOSITORY="${NEXUS_COMPAT_READ_REPOSITORY:-maven-public}"
-export NEXUS_PLUS_COMPAT_READ_REPOSITORY="${NEXUS_PLUS_COMPAT_READ_REPOSITORY:-maven-public}"
+export KKREPO_COMPAT_READ_REPOSITORY="${KKREPO_COMPAT_READ_REPOSITORY:-maven-public}"
 
 COMMON_ARGS=(
   -B
@@ -33,14 +33,14 @@ run_tests() {
 
 case "$SUITE" in
   smoke)
-    run_tests "NexusPlusConsoleBlackBoxCompatibilityTest,MavenRepositoryBlackBoxCompatibilityTest#proxyReadRoundTripMatchesNexusWhenConfigured"
+    run_tests "KkRepoConsoleBlackBoxCompatibilityTest,MavenRepositoryBlackBoxCompatibilityTest#proxyReadRoundTripMatchesNexusWhenConfigured"
     ;;
   write-smoke)
     export COMPAT_WRITE_ENABLED=true
     run_tests "MavenRepositoryBlackBoxCompatibilityTest#hostedReleaseDeployRoundTripMatchesNexusWhenConfigured+hostedPlainPutDoesNotGenerateSidecarsOrMetadataLikeNexusWhenConfigured+hostedSnapshotDeployRoundTripMatchesNexusWhenConfigured"
     ;;
   extended)
-    run_tests "NexusPlusConsoleBlackBoxCompatibilityTest,MavenRepositoryBlackBoxCompatibilityTest,PypiRepositoryBlackBoxCompatibilityTest,HelmRepositoryBlackBoxCompatibilityTest,NugetRubygemsYumRepositoryBlackBoxCompatibilityTest"
+    run_tests "KkRepoConsoleBlackBoxCompatibilityTest,MavenRepositoryBlackBoxCompatibilityTest,PypiRepositoryBlackBoxCompatibilityTest,HelmRepositoryBlackBoxCompatibilityTest,NugetRubygemsYumRepositoryBlackBoxCompatibilityTest"
     ;;
   full)
     mvn "${COMMON_ARGS[@]}" test

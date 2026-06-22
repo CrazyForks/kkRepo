@@ -1,6 +1,6 @@
 # 兼容性矩阵
 
-本文汇总 nexus-plus 当前公开兼容面。这里关注的是用户可见行为：客户端命令、HTTP 路径、仓库 recipe、迁移支持和已知限制。除非 Nexus 内部机制会影响客户端行为，否则不把内部实现细节作为兼容目标。
+本文汇总 kkrepo 当前公开兼容面。这里关注的是用户可见行为：客户端命令、HTTP 路径、仓库 recipe、迁移支持和已知限制。除非 Nexus 内部机制会影响客户端行为，否则不把内部实现细节作为兼容目标。
 
 更详细的验证流程见 [Nexus 兼容性测试说明](nexus-compatibility-testing.md)。
 
@@ -54,7 +54,7 @@
 /repository/nuget-group/v3/index.json
 ```
 
-Docker / OCI 比较特殊，因为 Docker 客户端使用 registry `/v2/...` 路由。共享入口部署会把 image path 第一段作为 nexus-plus 仓库名：
+Docker / OCI 比较特殊，因为 Docker 客户端使用 registry `/v2/...` 路由。共享入口部署会把 image path 第一段作为 kkrepo 仓库名：
 
 ```text
 <host>:<shared-port>/<repo>/<image>:<tag>
@@ -68,7 +68,7 @@ Docker / OCI 比较特殊，因为 Docker 客户端使用 registry `/v2/...` 路
 
 ## 迁移兼容
 
-nexus-plus 把迁移作为产品能力，而不是一次性脚本：
+kkrepo 把迁移作为产品能力，而不是一次性脚本：
 
 - 元数据迁移覆盖用户、角色、权限、blob store、repository 定义和相关兼容数据。
 - 仓库数据迁移默认扫描 hosted 仓库。
@@ -80,7 +80,7 @@ nexus-plus 把迁移作为产品能力，而不是一次性脚本：
 
 ## 已知限制
 
-- nexus-plus 不是 Nexus 内部机制的完整复刻。Karaf、OSGi、OrientDB、内嵌 Elasticsearch 和 Nexus task 子系统不是兼容目标。
+- kkrepo 不是 Nexus 内部机制的完整复刻。Karaf、OSGi、OrientDB、内嵌 Elasticsearch 和 Nexus task 子系统不是兼容目标。
 - Docker / OCI Registry 迁移尚未完成；repository metadata 和 data migration 仍需要 Docker 专项覆盖。
 - Docker connector listener 变更在启动时生效；运行时无重启端口重载、高级 TLS/SNI 管理、V1 search 和完整 OCI conformance workflow 尚未完成。
 - Go 不支持 hosted 上传；Go module proxy 行为以读取代理为主。
@@ -92,11 +92,11 @@ nexus-plus 把迁移作为产品能力，而不是一次性脚本：
 
 提交 Nexus compatibility issue，并包含：
 
-- Nexus 版本和 nexus-plus 版本或 commit。
+- Nexus 版本和 kkrepo 版本或 commit。
 - 仓库格式和 recipe。
 - 精确客户端命令或 HTTP 请求。
 - Nexus 的状态码、header 和响应体语义。
-- nexus-plus 的状态码、header 和响应体语义。
+- kkrepo 的状态码、header 和响应体语义。
 - 对真实客户端的影响。
 
 普通兼容差异可以用公开 issue。可利用的安全问题请按 [SECURITY.md](../../SECURITY.md) 私下报告。

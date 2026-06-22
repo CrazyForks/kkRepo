@@ -1,20 +1,20 @@
 # FAQ
 
-## nexus-plus 是什么？
+## kkrepo 是什么？
 
-nexus-plus 是一个兼容 Nexus 的自托管制品仓库，面向 Maven、npm、PyPI、Go、Helm、NuGet、RubyGems、Yum 和 Raw 等常见包格式。
+kkrepo 是一个兼容 Nexus 的自托管制品仓库，面向 Maven、npm、PyPI、Go、Helm、NuGet、RubyGems、Yum 和 Raw 等常见包格式。
 
 它保持 Nexus 风格客户端 URL、协议行为、权限和迁移目标，同时使用 MySQL 存储元数据，用 OSS/S3 兼容存储保存 blob。
 
-## nexus-plus 是 Sonatype Nexus 的 fork 吗？
+## kkrepo 是 Sonatype Nexus 的 fork 吗？
 
-不是。nexus-plus 是独立实现。Nexus 是客户端可见行为的兼容性参考，但 nexus-plus 不复制 Nexus 内部机制，例如 OrientDB、内嵌 Elasticsearch、Karaf、OSGi 或 Nexus task 子系统。
+不是。kkrepo 是独立实现。Nexus 是客户端可见行为的兼容性参考，但 kkrepo 不复制 Nexus 内部机制，例如 OrientDB、内嵌 Elasticsearch、Karaf、OSGi 或 Nexus task 子系统。
 
 ## 它能完整替代 Nexus 吗？
 
 取决于你的使用场景。
 
-nexus-plus 面向需要 Nexus 兼容客户端路径、常见仓库格式、MySQL 元数据、对象存储、多副本友好行为，以及从现有 Nexus 迁移的团队。
+kkrepo 面向需要 Nexus 兼容客户端路径、常见仓库格式、MySQL 元数据、对象存储、多副本友好行为，以及从现有 Nexus 迁移的团队。
 
 它不是每一个 Nexus 功能或每一个 Nexus UI/API endpoint 的完整克隆。生产迁移前请先查看 [兼容性矩阵](compatibility-matrix.md)。
 
@@ -58,7 +58,7 @@ MySQL 是以下数据的事实来源：
 
 这样可以避免生产正确性依赖内嵌数据库或只存在本地的状态。
 
-## nexus-plus 必须依赖 Redis 吗？
+## kkrepo 必须依赖 Redis 吗？
 
 不需要。默认 cache backend 是进程本地内存，正确性由 MySQL 支撑。进程内 cache 是可重建热缓存，具备 TTL 或 MySQL 支撑的失效水位。
 
@@ -77,9 +77,9 @@ MySQL 存储元数据和引用，不存储大制品字节。
 
 只有当所有副本挂载同一个强一致共享文件系统，并且显式启用生产 File 存储时，File blob storage 才适合生产。普通生产部署请使用 OSS/S3。
 
-## nexus-plus 支持高可用吗？
+## kkrepo 支持高可用吗？
 
-nexus-plus 按多副本部署设计：
+kkrepo 按多副本部署设计：
 
 - Session 使用 Spring Session JDBC。
 - 短生命周期认证 ticket 存在 MySQL。
@@ -98,13 +98,13 @@ nexus-plus 按多副本部署设计：
 3. 执行 `Nexus Repository Data` metadata sync。
 4. 执行 package sync。
 5. 切换前重复增量同步。
-6. 将流量切到 nexus-plus。
+6. 将流量切到 kkrepo。
 
 详见 [Nexus 迁移说明](nexus-migration-guide.md) 和 [迁移实战手册](migration-playbook.md)。
 
 ## 迁移后用户需要修改客户端配置吗？
 
-如果把原 Nexus 域名切到 nexus-plus，并保持 repository name 不变，大多数已支持的非 Docker 客户端可以继续使用相同 `/repository/<repo>/...` URL。
+如果把原 Nexus 域名切到 kkrepo，并保持 repository name 不变，大多数已支持的非 Docker 客户端可以继续使用相同 `/repository/<repo>/...` URL。
 
 如果域名或 repository name 改变，则客户端需要更新配置。
 
@@ -126,9 +126,9 @@ Docker 迁移、运行时 connector 免重启重载、V1 search 和完整 OCI co
 
 不要假设 Docker pull/push 可以通过 `/repository/<repo>/...` 工作。
 
-## nexus-plus 可以用于生产吗？
+## kkrepo 可以用于生产吗？
 
-nexus-plus 目前是早期开源软件，并已有首个公开版本。它已经包含重要的生产架构选择，但每个部署都应该自行验证：
+kkrepo 目前是早期开源软件，并已有首个公开版本。它已经包含重要的生产架构选择，但每个部署都应该自行验证：
 
 - 所需仓库格式。
 - 客户端兼容性。
@@ -144,14 +144,14 @@ nexus-plus 目前是早期开源软件，并已有首个公开版本。它已经
 
 使用 GitHub issues，并选择最接近的 issue template。请提供：
 
-- nexus-plus 版本或 commit。
+- kkrepo 版本或 commit。
 - 部署模式。
 - 仓库格式和类型。
 - 客户端命令或 HTTP 请求。
 - 预期行为和实际行为。
 - 脱敏日志。
 
-如果是 Nexus 行为差异，请使用 compatibility issue template，并提供 Nexus 和 nexus-plus 对同一请求的响应。
+如果是 Nexus 行为差异，请使用 compatibility issue template，并提供 Nexus 和 kkrepo 对同一请求的响应。
 
 ## 如何报告安全问题？
 
@@ -159,16 +159,16 @@ nexus-plus 目前是早期开源软件，并已有首个公开版本。它已经
 
 请按 [SECURITY.md](../../SECURITY.md) 通过 GitHub Security Advisories 私下报告。
 
-## nexus-plus 使用什么许可证？
+## kkrepo 使用什么许可证？
 
-nexus-plus 使用 [Apache License 2.0](../../LICENSE)。
+kkrepo 使用 [Apache License 2.0](../../LICENSE)。
 
 ## 去哪里提问？
 
 可使用：
 
 - GitHub issues：报告 bug、兼容差异、功能建议和文档问题。
-- [nexus-plus Telegram 群](https://t.me/+M6prtFUGnF9kYTU1)：社区讨论。
+- [kkrepo Telegram 群](https://t.me/+M6prtFUGnF9kYTU1)：社区讨论。
 - GitHub Security Advisories：报告可利用安全问题。
 
 详见 [SUPPORT.md](../../SUPPORT.md)。

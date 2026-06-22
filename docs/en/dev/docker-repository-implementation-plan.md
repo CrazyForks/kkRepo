@@ -1,6 +1,6 @@
 # Docker Repository Research And Development Plan
 
-This document plans the Docker/OCI repository format for nexus-plus. The goal is not to reinvent a container registry protocol, but to implement the compatible overlap between Nexus Docker repository behavior, Docker Registry HTTP API V2, and OCI Distribution, while fitting the nexus-plus MySQL + OSS/S3 + multi-replica architecture.
+This document plans the Docker/OCI repository format for kkrepo. The goal is not to reinvent a container registry protocol, but to implement the compatible overlap between Nexus Docker repository behavior, Docker Registry HTTP API V2, and OCI Distribution, while fitting the kkrepo MySQL + OSS/S3 + multi-replica architecture.
 
 ## Research Baseline
 
@@ -14,11 +14,11 @@ Implementation must be checked against these protocols and reference behaviors f
 
 Key conclusions:
 
-- Docker clients do not use the normal artifact repository URL shape `/repository/<repo>/...`. Nexus path-based routing uses the first image path segment as the repository name. For example, `docker pull nexus.example/docker-group/library/alpine:latest` maps to the registry API path `/v2/docker-group/library/alpine/manifests/latest`. Therefore, nexus-plus needs a Docker-specific `/v2/...` route and must parse the first segment as the nexus-plus repository name.
+- Docker clients do not use the normal artifact repository URL shape `/repository/<repo>/...`. Nexus path-based routing uses the first image path segment as the repository name. For example, `docker pull nexus.example/docker-group/library/alpine:latest` maps to the registry API path `/v2/docker-group/library/alpine/manifests/latest`. Therefore, kkrepo needs a Docker-specific `/v2/...` route and must parse the first segment as the kkrepo repository name.
 - The minimum pull surface is `/v2/`, manifest GET/HEAD, blob GET/HEAD, tag list, and the authentication challenge. Docker push must support blob upload sessions. Real clients commonly use `POST /blobs/uploads/` + `PATCH` + `PUT ?digest=...`, so a single PUT-only upload path is not enough.
 - Docker/OCI is content-addressed. Blob and manifest digests must be calculated from the exact original bytes on the server. Do not reorder JSON, rewrite timestamps, or canonicalize the body before calculating digests.
 - OCI referrers are now important for signatures, SBOMs, attestations, and related artifacts. The first phase can avoid blocking normal `docker pull/push` on referrers, but the data model should reserve subject/referrers indexes from the start.
-- Nexus Docker supports both path-based routing and port connectors. The first phase of nexus-plus should keep Docker connectors as dedicated traffic entrypoints so large image layer uploads/downloads do not crowd out the main service port, Admin UI, REST APIs, or normal artifact protocol requests. However, the listening port should not be a single global value. It should be stored as a Docker repository attribute during repository create/update. Each Docker repository can use a different connector port, and the server maps the local port to a fixed repository id. Path-based routing can still exist as a shared-entrypoint or reverse-proxy compatibility shape.
+- Nexus Docker supports both path-based routing and port connectors. The first phase of kkrepo should keep Docker connectors as dedicated traffic entrypoints so large image layer uploads/downloads do not crowd out the main service port, Admin UI, REST APIs, or normal artifact protocol requests. However, the listening port should not be a single global value. It should be stored as a Docker repository attribute during repository create/update. Each Docker repository can use a different connector port, and the server maps the local port to a fixed repository id. Path-based routing can still exist as a shared-entrypoint or reverse-proxy compatibility shape.
 
 ## Feature Scope
 
@@ -83,14 +83,14 @@ Repository-level connector ports do not replace path-based routing. They provide
 
 Global runtime keys to reserve. These enable connector capability and control shared resource pools; they do not contain the concrete repository port:
 
-- `nexus-plus.docker.connector.enabled=true`
-- `nexus-plus.docker.connector.threads.max`
-- `nexus-plus.docker.connector.max-connections`
-- `nexus-plus.docker.connector.accept-count`
-- `nexus-plus.docker.connector.connection-timeout`
-- `nexus-plus.docker.transfer.max-concurrent-uploads`
-- `nexus-plus.docker.transfer.max-concurrent-downloads`
-- `nexus-plus.docker.transfer.response-buffer-size`
+- `kkrepo.docker.connector.enabled=true`
+- `kkrepo.docker.connector.threads.max`
+- `kkrepo.docker.connector.max-connections`
+- `kkrepo.docker.connector.accept-count`
+- `kkrepo.docker.connector.connection-timeout`
+- `kkrepo.docker.transfer.max-concurrent-uploads`
+- `kkrepo.docker.transfer.max-concurrent-downloads`
+- `kkrepo.docker.transfer.response-buffer-size`
 
 Docker repository create/update attributes to reserve:
 
@@ -100,7 +100,7 @@ Docker repository create/update attributes to reserve:
 
 Port constraints:
 
-- `docker.connector.port` is valid only for Docker-format repositories and must be unique within one nexus-plus deployment.
+- `docker.connector.port` is valid only for Docker-format repositories and must be unique within one kkrepo deployment.
 - The port must not conflict with the main service port, management port, or another Docker repository connector port.
 - Repository create/update must validate port uniqueness in a MySQL transaction. On multi-replica startup, each node builds its local `port -> repository_id` mapping from Docker repository attributes in MySQL.
 - If the first phase does not support no-restart listener creation, changing a connector port can require a rolling restart, but the documentation and UI must make that operational meaning explicit.
@@ -117,7 +117,7 @@ Path parsing rules:
 | --- | --- |
 | `GET /v2/` | Registry probe, not bound to a specific repository |
 | `/v2/<image...>/manifests/<reference>` on a repository connector | Repository comes from the local listening-port mapping, and `<image...>` is the Docker repository name |
-| `/v2/<repo>/<image...>/manifests/<reference>` on a shared path-based entrypoint | `<repo>` is the nexus-plus repository name, and `<image...>` is the Docker repository name |
+| `/v2/<repo>/<image...>/manifests/<reference>` on a shared path-based entrypoint | `<repo>` is the kkrepo repository name, and `<image...>` is the Docker repository name |
 | `/v2/<image...>/blobs/<digest>` or `/v2/<repo>/<image...>/blobs/<digest>` | Digest is an OCI digest such as `sha256:<hex>` |
 | `/v2/<image...>/blobs/uploads/` or `/v2/<repo>/<image...>/blobs/uploads/` | Create an upload session |
 | `/v2/<image...>/blobs/uploads/<uuid>` or `/v2/<repo>/<image...>/blobs/uploads/<uuid>` | Read, append, complete, or cancel an upload session |
@@ -306,9 +306,9 @@ Recommended token implementation:
 - In the first phase, use short-lived opaque tokens verifiable through MySQL to avoid multi-replica signing-key distribution problems.
 - If this later changes to JWT, the signing key must come from shared configuration and support key rotation.
 
-Scope mapping to nexus-plus permissions:
+Scope mapping to kkrepo permissions:
 
-| Docker action | nexus-plus permission |
+| Docker action | kkrepo permission |
 | --- | --- |
 | `pull` | `READ`, and `BROWSE` when needed |
 | `push` | `ADD` for blob upload, `EDIT` for manifest/tag overwrite |

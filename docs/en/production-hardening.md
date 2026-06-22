@@ -1,12 +1,12 @@
 # Production Hardening Guide
 
-This checklist summarizes recommended production settings for nexus-plus. It does not replace environment-specific security review, backup planning, or load testing.
+This checklist summarizes recommended production settings for kkrepo. It does not replace environment-specific security review, backup planning, or load testing.
 
 ## Deployment Baseline
 
 Recommended production baseline:
 
-- At least two nexus-plus replicas behind a load balancer.
+- At least two kkrepo replicas behind a load balancer.
 - Independent MySQL 8.0 instance or managed MySQL service.
 - OSS/S3-compatible blob storage.
 - HTTPS termination at a load balancer or reverse proxy.
@@ -20,8 +20,8 @@ Avoid using Docker Compose quickstart settings for externally reachable producti
 Set stable, strong secrets before writing production data:
 
 ```bash
-NEXUS_PLUS_CREDENTIAL_SECRET=<strong-random-string>
-NEXUS_PLUS_API_KEY_PAYLOAD_SECRET=<strong-random-string>
+KKREPO_CREDENTIAL_SECRET=<strong-random-string>
+KKREPO_API_KEY_PAYLOAD_SECRET=<strong-random-string>
 ```
 
 These secrets protect:
@@ -47,9 +47,9 @@ Use an external MySQL instance:
 Tune Hikari when needed:
 
 ```bash
-NEXUS_PLUS_HIKARI_MAXIMUM_POOL_SIZE=50
-NEXUS_PLUS_HIKARI_MINIMUM_IDLE=10
-NEXUS_PLUS_HIKARI_CONNECTION_TIMEOUT_MS=5000
+KKREPO_HIKARI_MAXIMUM_POOL_SIZE=50
+KKREPO_HIKARI_MINIMUM_IDLE=10
+KKREPO_HIKARI_CONNECTION_TIMEOUT_MS=5000
 ```
 
 For large migrations, increase MySQL capacity before increasing migration concurrency.
@@ -68,17 +68,17 @@ Use OSS/S3-compatible storage for production:
 Tune S3 client capacity when object-storage traffic is high:
 
 ```bash
-NEXUS_PLUS_S3_MAX_CONNECTIONS=512
-NEXUS_PLUS_S3_MULTIPART_THRESHOLD_BYTES=67108864
-NEXUS_PLUS_S3_MULTIPART_PART_SIZE_BYTES=16777216
-NEXUS_PLUS_S3_MULTIPART_CONCURRENCY=4
+KKREPO_S3_MAX_CONNECTIONS=512
+KKREPO_S3_MULTIPART_THRESHOLD_BYTES=67108864
+KKREPO_S3_MULTIPART_PART_SIZE_BYTES=16777216
+KKREPO_S3_MULTIPART_CONCURRENCY=4
 ```
 
 File blob storage is not recommended for normal production. If you must use it, every replica must mount the same strongly consistent shared filesystem and production file storage must be explicitly enabled:
 
 ```bash
-NEXUS_PLUS_FILE_PRODUCTION_ENABLED=true
-NEXUS_PLUS_FILE_SHARED_FILESYSTEM=true
+KKREPO_FILE_PRODUCTION_ENABLED=true
+KKREPO_FILE_SHARED_FILESYSTEM=true
 ```
 
 ## Network And Reverse Proxy
@@ -97,8 +97,8 @@ Reverse proxy checklist:
 Set external URL/trusted proxy settings when required by your deployment:
 
 ```bash
-NEXUS_PLUS_EXTERNAL_BASE_URL=https://nexus.example.com
-NEXUS_PLUS_TRUSTED_PROXIES=10.0.0.0/8,192.168.0.0/16
+KKREPO_EXTERNAL_BASE_URL=https://nexus.example.com
+KKREPO_TRUSTED_PROXIES=10.0.0.0/8,192.168.0.0/16
 ```
 
 ## Session And Cookie Security
@@ -106,15 +106,15 @@ NEXUS_PLUS_TRUSTED_PROXIES=10.0.0.0/8,192.168.0.0/16
 Use HTTPS in production and enable secure cookies:
 
 ```bash
-NEXUS_PLUS_SESSION_COOKIE_SECURE=true
-NEXUS_PLUS_CSRF_COOKIE_SECURE=true
-NEXUS_PLUS_HSTS_ENABLED=true
+KKREPO_SESSION_COOKIE_SECURE=true
+KKREPO_CSRF_COOKIE_SECURE=true
+KKREPO_HSTS_ENABLED=true
 ```
 
 Keep session state in JDBC, which is the default:
 
 ```bash
-NEXUS_PLUS_SESSION_STORE_TYPE=jdbc
+KKREPO_SESSION_STORE_TYPE=jdbc
 ```
 
 ## Authentication And Authorization
@@ -141,25 +141,25 @@ Proxy repositories fetch remote content. Protect outbound access:
 Relevant settings:
 
 ```bash
-NEXUS_PLUS_OUTBOUND_ALLOW_PRIVATE_ADDRESSES=false
-NEXUS_PLUS_OUTBOUND_ALLOWED_HOSTS=
+KKREPO_OUTBOUND_ALLOW_PRIVATE_ADDRESSES=false
+KKREPO_OUTBOUND_ALLOWED_HOSTS=
 ```
 
 ## Resource Sizing
 
 Starting point:
 
-- nexus-plus replica: at least 2 CPU / 4 GB memory.
+- kkrepo replica: at least 2 CPU / 4 GB memory.
 - MySQL: at least 2 CPU / 4 GB memory, scaled by repository count, package count, and migration workload.
 - Blob storage: capacity and request throughput sized for both daily traffic and migration bursts.
 
 Tune Tomcat when concurrency grows:
 
 ```bash
-NEXUS_PLUS_TOMCAT_THREADS_MAX=100
-NEXUS_PLUS_TOMCAT_MAX_CONNECTIONS=2000
-NEXUS_PLUS_TOMCAT_ACCEPT_COUNT=200
-NEXUS_PLUS_TOMCAT_CONNECTION_TIMEOUT=30s
+KKREPO_TOMCAT_THREADS_MAX=100
+KKREPO_TOMCAT_MAX_CONNECTIONS=2000
+KKREPO_TOMCAT_ACCEPT_COUNT=200
+KKREPO_TOMCAT_CONNECTION_TIMEOUT=30s
 ```
 
 ## Upload Limits
@@ -167,9 +167,9 @@ NEXUS_PLUS_TOMCAT_CONNECTION_TIMEOUT=30s
 Defaults allow large uploads, but reverse proxies often need separate tuning:
 
 ```bash
-NEXUS_PLUS_MULTIPART_MAX_FILE_SIZE=1024MB
-NEXUS_PLUS_MULTIPART_MAX_REQUEST_SIZE=1024MB
-NEXUS_PLUS_UPLOAD_MAX_REQUEST_BYTES=1073741824
+KKREPO_MULTIPART_MAX_FILE_SIZE=1024MB
+KKREPO_MULTIPART_MAX_REQUEST_SIZE=1024MB
+KKREPO_UPLOAD_MAX_REQUEST_BYTES=1073741824
 ```
 
 Make sure proxy limits, application limits, and object-storage multipart settings are aligned.
@@ -181,10 +181,10 @@ Node-local caches are rebuildable. For correctness, do not rely on local memory 
 Useful cache settings:
 
 ```bash
-NEXUS_PLUS_CACHE_BACKEND=memory
-NEXUS_PLUS_CACHE_MEMORY_MAXIMUM_SIZE=500000
-NEXUS_PLUS_SECURITY_AUTHORIZATION_CACHE_TTL_MINUTES=10
-NEXUS_PLUS_CATALOG_CACHE_BROADCAST_BACKEND=mysql
+KKREPO_CACHE_BACKEND=memory
+KKREPO_CACHE_MEMORY_MAXIMUM_SIZE=500000
+KKREPO_SECURITY_AUTHORIZATION_CACHE_TTL_MINUTES=10
+KKREPO_CATALOG_CACHE_BROADCAST_BACKEND=mysql
 ```
 
 If cache issues are suspected, restart one replica at a time and verify behavior through MySQL-backed state.

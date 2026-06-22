@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 NEXUS_HOME="${NEXUS_HOME:-/private/tmp/nexus-3292-source/nexus-base-template-3.29.2-02}"
 NEXUS_COMPAT_PORT="${NEXUS_COMPAT_PORT:-58083}"
-NEXUS_PLUS_COMPAT_BASE_URL="${NEXUS_PLUS_COMPAT_BASE_URL:-http://127.0.0.1:18090}"
-NEXUS_COMPAT_DATA_DIR="${NEXUS_COMPAT_DATA_DIR:-$(mktemp -d /private/tmp/nexus-plus-compat-nexus.XXXXXX)}"
+KKREPO_COMPAT_BASE_URL="${KKREPO_COMPAT_BASE_URL:-http://127.0.0.1:18090}"
+NEXUS_COMPAT_DATA_DIR="${NEXUS_COMPAT_DATA_DIR:-$(mktemp -d /private/tmp/kkrepo-compat-nexus.XXXXXX)}"
 NEXUS_COMPAT_LOG="$NEXUS_COMPAT_DATA_DIR/log/nexus-stdout.log"
 NEXUS_COMPAT_BASE_URL="http://127.0.0.1:$NEXUS_COMPAT_PORT"
 START_TIMEOUT_SECONDS="${NEXUS_COMPAT_START_TIMEOUT_SECONDS:-150}"
@@ -22,8 +22,8 @@ if lsof -nP -iTCP:"$NEXUS_COMPAT_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! curl -m 5 -fsS "$NEXUS_PLUS_COMPAT_BASE_URL/actuator/health" >/dev/null; then
-  echo "[compat] nexus-plus is not healthy at $NEXUS_PLUS_COMPAT_BASE_URL; start it before running this script." >&2
+if ! curl -m 5 -fsS "$KKREPO_COMPAT_BASE_URL/actuator/health" >/dev/null; then
+  echo "[compat] kkrepo is not healthy at $KKREPO_COMPAT_BASE_URL; start it before running this script." >&2
   exit 1
 fi
 
@@ -95,7 +95,7 @@ echo "[compat] Nexus is ready; running release and snapshot write compatibility 
   NEXUS_COMPAT_BASE_URL="$NEXUS_COMPAT_BASE_URL" \
   NEXUS_COMPAT_USERNAME="admin" \
   NEXUS_COMPAT_PASSWORD="$admin_password" \
-  NEXUS_PLUS_COMPAT_BASE_URL="$NEXUS_PLUS_COMPAT_BASE_URL" \
+  KKREPO_COMPAT_BASE_URL="$KKREPO_COMPAT_BASE_URL" \
   COMPAT_WRITE_ENABLED="true" \
   mvn -pl compat-test -am \
     -DfailIfNoTests=false \

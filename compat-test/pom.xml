@@ -5,28 +5,28 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.github.klboke</groupId>
-    <artifactId>nexus-plus</artifactId>
+    <artifactId>kkrepo</artifactId>
     <version>0.1.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <artifactId>nexus-plus-compat-test</artifactId>
-  <name>nexus-plus-compat-test</name>
+  <artifactId>kkrepo-compat-test</artifactId>
+  <name>kkrepo-compat-test</name>
   <dependencies>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-maven</artifactId>
+      <artifactId>kkrepo-protocol-maven</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-npm</artifactId>
+      <artifactId>kkrepo-protocol-npm</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-helm</artifactId>
+      <artifactId>kkrepo-protocol-helm</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.klboke</groupId>
-      <artifactId>nexus-plus-protocol-docker</artifactId>
+      <artifactId>kkrepo-protocol-docker</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>

@@ -14,7 +14,7 @@ echo "[dist] building Spring Boot executable jar and installing reactor artifact
 mvn -pl server -am -DskipTests install spring-boot:repackage
 
 echo "[dist] assembling archive distribution..."
-mvn -pl server -DskipTests -Dnexus.plus.dist.version="$DIST_VERSION" assembly:single
+mvn -pl server -DskipTests -Dkkrepo.dist.version="$DIST_VERSION" assembly:single
 
 echo "[dist] built archives:"
-ls -lh "server/target/nexus-plus-${DIST_VERSION}.tar.gz" "server/target/nexus-plus-${DIST_VERSION}.zip"
+ls -lh "server/target/kkrepo-${DIST_VERSION}.tar.gz" "server/target/kkrepo-${DIST_VERSION}.zip"

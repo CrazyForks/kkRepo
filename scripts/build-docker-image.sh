@@ -4,10 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-IMAGE_TAG="${1:-${NEXUS_PLUS_IMAGE_TAG:-nexus-plus:38090}}"
+IMAGE_TAG="${1:-${KKREPO_IMAGE_TAG:-kkrepo:38090}}"
 PROJECT_VERSION="$(mvn -q -N -DforceStdout help:evaluate -Dexpression=project.version)"
-JAR_FILE="server/target/nexus-plus-server-${PROJECT_VERSION}.jar"
-START_CLASS="com.github.klboke.nexusplus.server.NexusPlusApplication"
+JAR_FILE="server/target/kkrepo-server-${PROJECT_VERSION}.jar"
+START_CLASS="com.github.klboke.kkrepo.server.KkRepoApplication"
 
 echo "[image] building Spring Boot jar..."
 mvn -pl server -am -DskipTests package spring-boot:repackage
