@@ -447,7 +447,7 @@ scripts/docker-compat/oci-conformance.sh
 ```
 
 The wrapper uses a local `oci-conformance` binary when available, or the
-`ghcr.io/opencontainers/distribution-spec/conformance:latest` image when Docker mode is enabled.
+`ghcr.io/opencontainers/distribution-spec/conformance:v1.1.1` image when Docker mode is enabled.
 Reports are written under `target/oci-conformance/docker` by default.
 GitHub Actions also includes a manual/label-gated `Docker OCI Conformance`
 workflow. Add the `run-docker-oci-conformance` label to a PR, or start it with
