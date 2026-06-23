@@ -91,8 +91,9 @@ public class DockerConnectorManager {
       if (settings == null || settings.connectorPort() == null) {
         continue;
       }
-      boolean configured = connectorEnabled && settings.connectorEnabled();
-      boolean conflict = ports.containsKey(settings.connectorPort());
+      boolean repositoryEnabled = settings.connectorEnabled();
+      boolean configured = connectorEnabled && repositoryEnabled;
+      boolean conflict = configured && ports.containsKey(settings.connectorPort());
       if (configured && !conflict) {
         ports.put(settings.connectorPort(), record.name());
       }
@@ -104,7 +105,7 @@ public class DockerConnectorManager {
           settings.connectorPort(),
           settings.connectorPublicUrl(),
           configured && !conflict,
-          conflict ? "duplicate-port" : connectorEnabled ? "active" : "globally-disabled"));
+          connectorState(repositoryEnabled, conflict)));
     }
     connectors.sort(Comparator
         .comparing((ConnectorStatus item) -> item.port() == null ? Integer.MAX_VALUE : item.port())
@@ -165,6 +166,19 @@ public class DockerConnectorManager {
     }
     String text = value.toString().trim();
     return text.isBlank() ? null : text;
+  }
+
+  private String connectorState(boolean repositoryEnabled, boolean conflict) {
+    if (!connectorEnabled) {
+      return "globally-disabled";
+    }
+    if (!repositoryEnabled) {
+      return "repository-disabled";
+    }
+    if (conflict) {
+      return "duplicate-port";
+    }
+    return "active";
   }
 
   record DockerSettings(boolean connectorEnabled, Integer connectorPort, String connectorPublicUrl) {
