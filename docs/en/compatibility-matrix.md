@@ -24,7 +24,7 @@ For deeper validation workflow details, see [Nexus Compatibility Testing](nexus-
 | RubyGems | hosted / proxy / group | Gem push/yank, gem download, compact and legacy index assets, admin UI upload | Supported | Hosted by default; proxy optional | `NugetRubygemsYumRepositoryBlackBoxCompatibilityTest` |
 | Yum | hosted / proxy / group | RPM PUT/upload, package download, `repodata` metadata | `repodata` supported | Hosted by default; proxy optional | `NugetRubygemsYumRepositoryBlackBoxCompatibilityTest` |
 | Raw | hosted / proxy / group | PUT upload, GET/HEAD reads, group/proxy fallback, admin UI upload | Supported | Hosted by default; proxy optional | `RawRepositoryBlackBoxCompatibilityTest`, `ComponentUploadBlackBoxCompatibilityTest` |
-| Docker / OCI | Planned hosted first, then proxy/group | In progress; see development plan | Planned | Planned | [Docker / OCI development plan](dev/docker-repository-implementation-plan.md) |
+| Docker / OCI | hosted / proxy / group | Registry V2 login, hosted push/pull, proxy pull, group pull, manifests, blobs, tags, upload sessions, cross-repo mount, referrers, content cleanup, Docker Hub `library` namespace compensation | Manifest/tag/blob metadata supported | Hosted Docker repository data migration supported through Nexus Repository Data | `DockerRegistryBlackBoxCompatibilityTest`, Docker server/protocol tests, OCI conformance workflow, [Docker / OCI implementation notes](dev/docker-repository-implementation-plan.md) |
 
 ## Admin And Security Compatibility
 
@@ -54,10 +54,16 @@ Examples:
 /repository/nuget-group/v3/index.json
 ```
 
-Docker / OCI is different because Docker clients use registry `/v2/...` routes. The current plan is to add a dedicated Docker port and path-based repository routing such as:
+Docker / OCI is different because Docker clients use registry `/v2/...` routes. Shared-entrypoint deployments use the first image path segment as the kkrepo repository name:
 
 ```text
-<host>:<docker-port>/<repo>/<image>:<tag>
+<host>:<shared-port>/<repo>/<image>:<tag>
+```
+
+Repository-level Docker connector ports can expose the standard image shape when configured:
+
+```text
+<host>:<repo-port>/<image>:<tag>
 ```
 
 ## Migration Compatibility
@@ -75,7 +81,8 @@ See [Nexus Migration Guide](nexus-migration-guide.md).
 ## Known Limits
 
 - kkrepo is not a full reimplementation of Nexus internals. Karaf, OSGi, OrientDB, embedded Elasticsearch, and the Nexus task subsystem are not compatibility goals.
-- Docker / OCI Registry support is in progress and not available as a completed repository format yet.
+- Docker / OCI uses Registry HTTP API V2 and OCI Distribution; Docker Registry V1 API and `docker search` are intentionally not part of the supported surface unless a future compatibility need requires a search-only shim.
+- Docker connector listener changes can be refreshed through the Docker operations endpoint. Advanced connector TLS/SNI management remains deployment-specific.
 - Go hosted upload is not supported; Go module proxy behavior is read-oriented.
 - Full coverage of every Nexus UI endpoint is not guaranteed. Endpoints are added when they are needed for supported user workflows or migration compatibility.
 - Exact ordering, timestamps, generated IDs, and hostnames may be normalized in tests when the protocol allows nondeterminism.

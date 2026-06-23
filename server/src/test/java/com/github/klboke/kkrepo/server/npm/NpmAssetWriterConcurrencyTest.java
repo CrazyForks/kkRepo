@@ -172,9 +172,7 @@ class NpmAssetWriterConcurrencyTest {
         "https://registry.npmjs.org",
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private record StoredPair(NpmAssetWriter.Stored first, NpmAssetWriter.Stored second) {}

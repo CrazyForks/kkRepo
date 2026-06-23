@@ -503,6 +503,18 @@ function repositoryBaseUrl(repoName = state.repo) {
   return new URL(`/repository/${encodeURIComponent(repoName)}/`, window.location.origin).href;
 }
 
+function dockerRepositoryBaseUrl(repo = currentRepository()) {
+  if (!repo) return "";
+  const docker = repo.docker || {};
+  if (docker.connectorEnabled && docker.connectorPublicUrl) {
+    return docker.connectorPublicUrl.replace(/\/+$/, "");
+  }
+  if (docker.connectorEnabled && docker.connectorPort) {
+    return `${window.location.protocol}//${window.location.hostname}:${docker.connectorPort}`;
+  }
+  return new URL(`/v2/${encodeURIComponent(repo.name)}`, window.location.origin).href.replace(/\/+$/, "");
+}
+
 async function fetchRepositories() {
   const res = await fetch("/internal/repositories", { headers: { Accept: "application/json" }, cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load repositories: ${res.status}`);
@@ -529,6 +541,7 @@ function normalizeRepository(repo) {
     format: (repo.format || "").toLowerCase(),
     online: repo.online,
     url: repo.url,
+    docker: repo.docker || null,
     hostedVersionPolicy: repo.hosted ? repo.hosted.versionPolicy : null,
     status: repo.online ? "Online" : "Offline",
   };
@@ -667,6 +680,9 @@ function updateRepositorySortHeaders() {
 }
 
 function repositoryClientUrl(repo) {
+  if (repo.format === "docker") {
+    return dockerRepositoryBaseUrl(repo);
+  }
   const path = repo.url || `/repository/${encodeURIComponent(repo.name)}/`;
   try {
     return new URL(path, window.location.origin).href;
@@ -1314,6 +1330,11 @@ function formatBytes(size) {
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
 }
 
+function formatBytesDetail(size) {
+  if (size == null || isNaN(size)) return "-";
+  return `${formatBytes(Number(size))} (${Number(size)} bytes)`;
+}
+
 function formatInstant(text) {
   if (!text) return "";
   try { return new Date(text).toLocaleString(); } catch { return text; }
@@ -1338,6 +1359,23 @@ function kv(label, value, opts = {}) {
   const cls = opts.locked ? "kv-val kv-locked" : "kv-val";
   const inner = opts.raw ? value : escapeHtml(value);
   return `<div class="kv"><span class="kv-key">${escapeHtml(label)}</span><span class="${cls}">${inner}</span></div>`;
+}
+
+function maybeKv(label, value, opts = {}) {
+  if (value === null || value === undefined || value === "") return "";
+  return kv(label, value, opts);
+}
+
+function codeValue(value) {
+  return value ? `<code>${escapeHtml(value)}</code>` : "-";
+}
+
+function shortDigest(value) {
+  const text = value || "";
+  if (text.startsWith("sha256:") && text.length > 26) {
+    return `${text.slice(0, 19)}...${text.slice(-8)}`;
+  }
+  return text;
 }
 
 function parseGav(path) {
@@ -1379,11 +1417,12 @@ function renderAttributeGroup(title, values) {
     </div>`;
 }
 
-function renderAttributesSection(detail) {
+function renderAttributesSection(detail, opts = {}) {
   if (!detail) return "";
   const body = [
     renderAttributeGroup("Checksum", detail.checksum),
     renderAttributeGroup("Content", detail.content),
+    opts.hideDocker ? "" : renderAttributeGroup("Docker", detail.docker),
     renderAttributeGroup("Npm", detail.npm),
     renderAttributeGroup("Provenance", detail.provenance),
   ].filter(Boolean).join("");
@@ -1742,6 +1781,220 @@ async function goUsageDetail(entry) {
   };
 }
 
+function dockerCoordinates(entry, detail = null) {
+  const docker = detail?.docker || {};
+  const image = docker.image_name || imageNameFromDockerPath(entry.path);
+  const reference = docker.reference || dockerTagFromDockerPath(entry.path) || "latest";
+  return { image, reference, digest: docker.digest || docker.raw_bytes_digest || "" };
+}
+
+function isDockerDetail(detail) {
+  return currentRepository()?.format === "docker" || !!detail?.docker?.asset_kind;
+}
+
+function imageNameFromDockerPath(path) {
+  const parts = pathSegments(path);
+  const manifests = parts.lastIndexOf("manifests");
+  if (manifests > 0) {
+    const start = parts[0] === "v2" ? 1 : parts[0] === "docker" && parts[1] === "manifests" ? 2 : 0;
+    return parts.slice(start, manifests).join("/");
+  }
+  const blobs = parts.lastIndexOf("blobs");
+  if (blobs > 0) {
+    const start = parts[0] === "v2" ? 1 : 0;
+    return parts.slice(start, blobs).join("/");
+  }
+  return "";
+}
+
+function dockerTagFromDockerPath(path) {
+  const parts = pathSegments(path);
+  const manifests = parts.lastIndexOf("manifests");
+  if (manifests >= 0 && parts[manifests + 1]) {
+    const reference = parts[manifests + 1];
+    return reference.includes(":") ? "" : reference;
+  }
+  return "";
+}
+
+function dockerUsageDetail(entry, detail = null) {
+  const { image, reference, digest } = dockerCoordinates(entry, detail);
+  if (!image) return null;
+  const base = dockerRepositoryBaseUrl();
+  const byTag = `${base}/${image}:${reference || "latest"}`;
+  const snippets = [
+    usageSnippet("docker pull", `docker pull ${byTag}`),
+    usageSnippet("docker tag", `docker tag ${image}:${reference || "latest"} ${byTag}`),
+    usageSnippet("docker push", `docker push ${byTag}`),
+  ];
+  if (digest) {
+    snippets.push(usageSnippet("docker pull digest", `docker pull ${base}/${image}@${digest}`));
+  }
+  return {
+    crumbText: entry.path,
+    summaryRows: [
+      ["Repository", state.repo],
+      ["Format", "docker"],
+      ["Image", image],
+      ["Reference", reference || digest || "-"],
+      ["Digest", digest || "-"],
+      ["Registry URL", base],
+    ],
+    snippets,
+  };
+}
+
+function dockerKindLabel(kind) {
+  const normalized = (kind || "").toString().toUpperCase();
+  if (normalized === "MANIFEST") return "Manifest";
+  if (normalized === "BLOB") return "Blob";
+  return normalized || "-";
+}
+
+function dockerActorRows(detail) {
+  const uploader = detail?.uploader || "-";
+  const uploaderIp = detail?.uploaderIp || "";
+  const proxy = uploader === "proxy";
+  return `
+    ${kv(proxy ? "Cached by" : "Uploaded by", uploader)}
+    ${uploaderIp ? kv(proxy ? "Remote" : "Uploader IP", uploaderIp) : ""}
+  `;
+}
+
+function dockerSizeRows(docker, detail, entry) {
+  const manifestSize = docker?.manifest_size_bytes ?? detail?.size ?? entry.size;
+  const blobSize = docker?.blob_size_bytes ?? detail?.size ?? entry.size;
+  if ((docker?.asset_kind || "").toString().toUpperCase() === "BLOB") {
+    return kv("Blob size", formatBytesDetail(blobSize));
+  }
+  return `
+    ${kv("Manifest size", formatBytesDetail(manifestSize))}
+    ${docker?.layer_size_bytes != null ? kv("Image size", formatBytesDetail(docker.layer_size_bytes)) : ""}
+    ${docker?.cached_image_size_bytes != null ? kv("Cached image size", formatBytesDetail(docker.cached_image_size_bytes)) : ""}
+  `;
+}
+
+function renderDockerSummaryPanel(entry, detail, sourceRepository) {
+  const docker = detail?.docker || {};
+  const { image, reference, digest } = dockerCoordinates(entry, detail);
+  return `
+    <section class="panel">
+      <header class="panel-head">Summary</header>
+      <div class="panel-body">
+        ${kv("Repository", state.repo)}
+        ${sourceRepository && sourceRepository !== state.repo ? kv("Source repository", sourceRepository) : ""}
+        ${kv("Path", entry.path)}
+        ${maybeKv("Image", image)}
+        ${maybeKv("Reference", reference || digest || "-")}
+        ${kv("Digest", codeValue(digest || docker.raw_bytes_digest || "-"), { raw: true })}
+        ${kv("Asset type", dockerKindLabel(docker.asset_kind))}
+        ${dockerSizeRows(docker, detail, entry)}
+        ${maybeKv("Cached platform", docker.cached_image_platform)}
+        ${dockerActorRows(detail)}
+        ${kv("Last updated", formatInstant(detail?.lastUpdatedAt || entry.lastUpdatedAt))}
+      </div>
+    </section>`;
+}
+
+function renderGenericAssetSummaryPanel(entry, detail, sourceRepository, uploader, uploaderIp) {
+  return `
+    <section class="panel">
+      <header class="panel-head">Summary</header>
+      <div class="panel-body">
+        ${kv("Repository", state.repo)}
+        ${sourceRepository && sourceRepository !== state.repo ? kv("Source repository", sourceRepository) : ""}
+        ${kv("Path", entry.path)}
+        ${kv("Uploader", uploader)}
+        ${uploaderIp ? kv("Uploader IP", uploaderIp) : ""}
+        ${kv("Size", formatBytesDetail(detail?.size ?? entry.size))}
+        ${kv("Content-Type", detail?.contentType || entry.contentType || "-")}
+        ${kv("Last updated", formatInstant(detail?.lastUpdatedAt || entry.lastUpdatedAt))}
+        ${kv("SHA-1", codeValue(detail?.checksum?.sha1 || entry.sha1 || "-"), { raw: true })}
+      </div>
+    </section>`;
+}
+
+function renderDockerMetadataPanel(detail) {
+  const docker = detail?.docker || {};
+  if (!Object.keys(docker).length) return "";
+  const platforms = Array.isArray(docker.platforms) ? docker.platforms : [];
+  const configs = Array.isArray(docker.config_descriptors) ? docker.config_descriptors : [];
+  const layers = Array.isArray(docker.layer_descriptors) ? docker.layer_descriptors : [];
+  const manifests = Array.isArray(docker.manifest_descriptors) ? docker.manifest_descriptors : [];
+  const referrers = Array.isArray(docker.referrers) ? docker.referrers : [];
+  const cachedPlatforms = docker.cached_platform_count != null
+    ? `${docker.cached_platform_count}${docker.platform_count ? ` / ${docker.platform_count}` : ""}`
+    : "";
+  return `
+    <section class="panel">
+      <header class="panel-head">Docker metadata</header>
+      <div class="panel-body">
+        ${maybeKv("Media type", docker.media_type || detail?.contentType)}
+        ${maybeKv("Layers", docker.layer_count)}
+        ${maybeKv("Cached layers", docker.cached_layer_count != null && docker.layer_count ? `${docker.cached_layer_count} / ${docker.layer_count}` : docker.cached_layer_count)}
+        ${maybeKv("Layer size", docker.layer_size_bytes != null ? formatBytesDetail(docker.layer_size_bytes) : "")}
+        ${maybeKv("Cached layer size", docker.cached_layer_size_bytes != null ? formatBytesDetail(docker.cached_layer_size_bytes) : "")}
+        ${maybeKv("Referenced size", docker.referenced_size_bytes != null ? formatBytesDetail(docker.referenced_size_bytes) : "")}
+        ${maybeKv("Platforms", docker.platform_count)}
+        ${maybeKv("Cached platforms", cachedPlatforms)}
+        ${maybeKv("Platform summary", docker.platform_summary)}
+        ${maybeKv("Descriptors", docker.descriptor_count)}
+        ${maybeKv("Tags", Array.isArray(docker.tags) ? docker.tags.join(", ") : "")}
+        ${maybeKv("Referrers", docker.referrer_count)}
+        ${renderDockerPlatforms(platforms)}
+        ${renderDockerDescriptorList("Config", configs)}
+        ${renderDockerDescriptorList("Layers", layers)}
+        ${renderDockerDescriptorList("Child manifests", manifests)}
+        ${renderDockerReferrers(referrers)}
+      </div>
+    </section>`;
+}
+
+function renderDockerPlatforms(platforms) {
+  if (!platforms.length) return "";
+  const rows = platforms.map((platform) => `
+    <div class="platform-row">
+      <span class="platform-name">${escapeHtml(platform.platform || "-")}</span>
+      <code class="platform-digest">${escapeHtml(shortDigest(platform.digest || ""))}</code>
+      <span class="platform-size">${escapeHtml(platform.cached_image_size_bytes != null
+        ? formatBytes(platform.cached_image_size_bytes)
+        : platform.manifest_size_bytes != null ? formatBytes(platform.manifest_size_bytes) : "-")}</span>
+    </div>`).join("");
+  return `<div class="platform-list">${rows}</div>`;
+}
+
+function renderDockerDescriptorList(title, descriptors) {
+  if (!descriptors.length) return "";
+  const rows = descriptors.map((descriptor) => `
+    <div class="docker-descriptor-row">
+      <code class="descriptor-digest" title="${escapeHtml(descriptor.digest || "")}">${escapeHtml(shortDigest(descriptor.digest || ""))}</code>
+      <span class="descriptor-media" title="${escapeHtml(descriptor.media_type || "")}">${escapeHtml(descriptor.media_type || "-")}</span>
+      <span class="descriptor-size">${escapeHtml(descriptor.size_bytes != null ? formatBytes(descriptor.size_bytes) : "-")}</span>
+      ${descriptor.platform ? `<span class="descriptor-platform">${escapeHtml(descriptor.platform)}</span>` : ""}
+    </div>`).join("");
+  return `
+    <div class="docker-descriptor-list">
+      <div class="docker-descriptor-title">${escapeHtml(title)}</div>
+      ${rows}
+    </div>`;
+}
+
+function renderDockerReferrers(referrers) {
+  if (!referrers.length) return "";
+  const rows = referrers.map((referrer) => `
+    <div class="docker-descriptor-row docker-referrer-row">
+      <code class="descriptor-digest" title="${escapeHtml(referrer.digest || "")}">${escapeHtml(shortDigest(referrer.digest || ""))}</code>
+      <span class="descriptor-media" title="${escapeHtml(referrer.artifact_type || referrer.media_type || "")}">${escapeHtml(referrer.artifact_type || referrer.media_type || "-")}</span>
+      <span class="descriptor-size">${escapeHtml(referrer.size_bytes != null ? formatBytes(referrer.size_bytes) : "-")}</span>
+      <span class="descriptor-platform">${escapeHtml(referrer.image_name || "")}</span>
+    </div>`).join("");
+  return `
+    <div class="docker-descriptor-list">
+      <div class="docker-descriptor-title">Referrers</div>
+      ${rows}
+    </div>`;
+}
+
 async function usageDetailForEntry(entry) {
   const repo = currentRepository();
   if (!repo) return null;
@@ -1750,6 +2003,7 @@ async function usageDetailForEntry(entry) {
   if (repo.format === "npm") return npmUsageDetail(entry);
   if (repo.format === "helm") return helmUsageDetail(entry);
   if (repo.format === "go") return goUsageDetail(entry);
+  if (repo.format === "docker") return dockerUsageDetail(entry);
   return null;
 }
 
@@ -1775,34 +2029,26 @@ async function showAssetDetail(entry) {
   if (!mount) return;
   const usage = await usageDetailForEntry(entry);
   const detail = await fetchAssetAttributes(entry);
+  const dockerUsage = currentRepository()?.format === "docker" ? dockerUsageDetail(entry, detail) : null;
   const uploader = detail?.uploader || "-";
   const uploaderIp = detail?.uploaderIp || "";
   const sourceRepository = detail?.sourceRepository || entry.sourceRepository || "";
-  const downloadUrl = detail?.downloadUrl || entry.downloadUrl;
+  const dockerDetail = isDockerDetail(detail);
+  const downloadUrl = dockerDetail ? (entry.downloadUrl || detail?.downloadUrl) : (detail?.downloadUrl || entry.downloadUrl);
   mount.innerHTML = `
     <div class="detail-pane">
       ${detailHead('<span class="crumb-icon">📄</span>', entry.path, entry)}
-      <section class="panel">
-        <header class="panel-head">Summary</header>
-        <div class="panel-body">
-          ${kv("Repository", state.repo)}
-          ${sourceRepository && sourceRepository !== state.repo ? kv("Source repository", sourceRepository) : ""}
-          ${kv("Path", entry.path)}
-          ${kv("Uploader", uploader)}
-          ${uploaderIp ? kv("Uploader IP", uploaderIp) : ""}
-          ${kv("Size", `${formatBytes(detail?.size ?? entry.size)} (${detail?.size ?? entry.size ?? "-"} bytes)`)}
-          ${kv("Content-Type", detail?.contentType || entry.contentType || "-")}
-          ${kv("Last updated", formatInstant(detail?.lastUpdatedAt || entry.lastUpdatedAt))}
-          ${kv("SHA-1", `<code>${escapeHtml(detail?.checksum?.sha1 || entry.sha1 || "-")}</code>`, { raw: true })}
-        </div>
-      </section>
-      ${renderUsageSection(usage ? usage.snippets : [])}
-      ${renderAttributesSection(detail)}
+      ${dockerDetail
+        ? renderDockerSummaryPanel(entry, detail, sourceRepository)
+        : renderGenericAssetSummaryPanel(entry, detail, sourceRepository, uploader, uploaderIp)}
+      ${dockerDetail ? renderDockerMetadataPanel(detail) : ""}
+      ${renderUsageSection((dockerUsage || usage) ? (dockerUsage || usage).snippets : [])}
+      ${renderAttributesSection(detail, { hideDocker: dockerDetail })}
       <div class="download-row">
         <a class="copy-button" href="${downloadUrl}" target="_blank">Download ↓</a>
       </div>
     </div>`;
-  if (usage) bindUsageControls(mount, usage.snippets);
+  if (dockerUsage || usage) bindUsageControls(mount, (dockerUsage || usage).snippets);
   bindDeleteControl(mount, entry);
 }
 

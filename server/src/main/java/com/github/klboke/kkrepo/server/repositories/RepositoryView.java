@@ -2,6 +2,7 @@ package com.github.klboke.kkrepo.server.repositories;
 
 import com.github.klboke.kkrepo.core.RepositoryFormat;
 import com.github.klboke.kkrepo.core.RepositoryType;
+import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.DockerSettings;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.GroupSettings;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.HostedSettings;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.ProxySettings;
@@ -20,5 +21,6 @@ public record RepositoryView(
     HostedSettings hosted,
     ProxySettings proxy,
     RawSettings raw,
+    DockerSettings docker,
     GroupSettings group) {
 }

@@ -9,6 +9,7 @@ import com.github.klboke.kkrepo.persistence.mysql.dao.RepositoryDao;
 import com.github.klboke.kkrepo.persistence.mysql.dao.SecurityDao;
 import com.github.klboke.kkrepo.persistence.mysql.model.BlobStoreRecord;
 import com.github.klboke.kkrepo.persistence.mysql.model.RepositoryRecord;
+import com.github.klboke.kkrepo.server.docker.DockerConnectorRuntime;
 import com.github.klboke.kkrepo.server.maven.ProxyNegativeCache;
 import com.github.klboke.kkrepo.server.maven.RepositoryRuntimeRegistry;
 import com.github.klboke.kkrepo.server.npm.NpmGroupPackumentCache;
@@ -16,6 +17,7 @@ import com.github.klboke.kkrepo.server.pypi.PypiGroupSimpleIndexCache;
 import com.github.klboke.kkrepo.server.cache.GroupMemberAssetCache;
 import com.github.klboke.kkrepo.server.cache.NexusLikeCacheController;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.CreateCommand;
+import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.DockerSettings;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.GroupSettings;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.HostedSettings;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCommands.ProxySettings;
@@ -38,6 +40,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class RepositoryService {
@@ -60,7 +64,10 @@ public class RepositoryService {
   private final GroupMemberAssetCache groupMemberAssetCache;
   private final NexusLikeCacheController cacheController;
   private final RepositoryCatalogCache repositoryCatalogCache;
+  private final DockerConnectorRuntime dockerConnectorRuntime;
   private final String urlPrefix;
+  private final int serverPort;
+  private final int managementPort;
 
   @Autowired
   public RepositoryService(
@@ -77,7 +84,10 @@ public class RepositoryService {
       GroupMemberAssetCache groupMemberAssetCache,
       NexusLikeCacheController cacheController,
       RepositoryCatalogCache repositoryCatalogCache,
-      @Value("${kkrepo.compatibility.repository-url-prefix:/repository}") String urlPrefix) {
+      DockerConnectorRuntime dockerConnectorRuntime,
+      @Value("${kkrepo.compatibility.repository-url-prefix:/repository}") String urlPrefix,
+      @Value("${server.port:8080}") int serverPort,
+      @Value("${management.server.port:${server.port:8080}}") int managementPort) {
     this.repositoryDao = repositoryDao;
     this.blobStoreDao = blobStoreDao;
     this.securityDao = securityDao;
@@ -91,7 +101,10 @@ public class RepositoryService {
     this.groupMemberAssetCache = groupMemberAssetCache;
     this.cacheController = cacheController;
     this.repositoryCatalogCache = repositoryCatalogCache;
+    this.dockerConnectorRuntime = dockerConnectorRuntime;
     this.urlPrefix = urlPrefix;
+    this.serverPort = serverPort;
+    this.managementPort = managementPort;
   }
 
   public RepositoryService(
@@ -101,7 +114,8 @@ public class RepositoryService {
       RepositoryRuntimeRegistry runtimeRegistry,
       String urlPrefix) {
     this(repositoryDao, blobStoreDao, securityDao, runtimeRegistry, null, null,
-        null, OutboundRequestPolicy.allowPrivateForTests(), null, null, null, null, null, urlPrefix);
+        null, OutboundRequestPolicy.allowPrivateForTests(), null, null, null, null, null, null,
+        urlPrefix, 8080, 8080);
   }
 
   public RepositoryService(
@@ -112,7 +126,21 @@ public class RepositoryService {
       NexusLikeCacheController cacheController,
       String urlPrefix) {
     this(repositoryDao, blobStoreDao, securityDao, runtimeRegistry, null, null,
-        null, OutboundRequestPolicy.allowPrivateForTests(), null, null, null, cacheController, null, urlPrefix);
+        null, OutboundRequestPolicy.allowPrivateForTests(), null, null, null, cacheController, null, null,
+        urlPrefix, 8080, 8080);
+  }
+
+  RepositoryService(
+      RepositoryDao repositoryDao,
+      BlobStoreDao blobStoreDao,
+      SecurityDao securityDao,
+      RepositoryRuntimeRegistry runtimeRegistry,
+      String urlPrefix,
+      int serverPort,
+      int managementPort) {
+    this(repositoryDao, blobStoreDao, securityDao, runtimeRegistry, null, null,
+        null, OutboundRequestPolicy.allowPrivateForTests(), null, null, null, null, null, null, urlPrefix,
+        serverPort, managementPort);
   }
 
   @Transactional(readOnly = true)
@@ -163,6 +191,11 @@ public class RepositoryService {
     if (recipe.format() == RepositoryFormat.RAW) {
       attributes.put("raw", rawAttributes(command.raw()));
     }
+    if (recipe.format() == RepositoryFormat.DOCKER) {
+      DockerSettings docker = normalizeDocker(command.docker());
+      validateDockerConnectorPort(null, docker);
+      attributes.put("docker", dockerAttributes(docker));
+    }
 
     String versionPolicy = null;
     String layoutPolicy = null;
@@ -200,6 +233,7 @@ public class RepositoryService {
     NexusRepositorySecurityContributor.ensureRepositoryPrivileges(securityDao, recipe.format(), name);
     invalidateAuthorizationCacheAfterCommit();
     refreshRepositoryCatalogAfterCommit();
+    syncDockerConnectorsAfterCommit(recipe.format());
     return get(name);
   }
 
@@ -229,6 +263,12 @@ public class RepositoryService {
               ? current.contentDisposition()
               : command.raw().contentDisposition());
       attributes.put("raw", rawAttributes(merged));
+    }
+    if (recipe.format() == RepositoryFormat.DOCKER) {
+      DockerSettings current = readDockerAttributes(existing);
+      DockerSettings merged = mergeDocker(current, command.docker());
+      validateDockerConnectorPort(existing.id(), merged);
+      attributes.put("docker", dockerAttributes(merged));
     }
 
     String versionPolicy = existing.versionPolicy();
@@ -279,6 +319,7 @@ public class RepositoryService {
     invalidateRuntimeCache(existing.id(), name);
     invalidateRepositoryCacheTokensAfterCommit(existing.id());
     refreshRepositoryCatalogAfterCommit();
+    syncDockerConnectorsAfterCommit(existing.format());
     return get(name);
   }
 
@@ -308,6 +349,7 @@ public class RepositoryService {
     invalidateRepositoryCacheTokensAfterCommit(existing.id());
     invalidateAuthorizationCacheAfterCommit();
     refreshRepositoryCatalogAfterCommit();
+    syncDockerConnectorsAfterCommit(existing.format());
   }
 
   @Transactional
@@ -344,6 +386,98 @@ public class RepositoryService {
     }
     for (RepositoryRecord group : repositoryDao.listGroupsContaining(repositoryId)) {
       runtimeRegistry.invalidate(group.name());
+    }
+  }
+
+  private DockerSettings normalizeDocker(DockerSettings settings) {
+    if (settings == null) {
+      return new DockerSettings(false, null, null);
+    }
+    Integer port = settings.connectorPort();
+    Boolean enabled = settings.connectorEnabled();
+    if (enabled == null) {
+      enabled = port != null;
+    }
+    if (Boolean.FALSE.equals(enabled)) {
+      port = null;
+    }
+    return new DockerSettings(enabled, port, blankToNull(settings.connectorPublicUrl()));
+  }
+
+  @SuppressWarnings("unchecked")
+  private DockerSettings readDockerAttributes(RepositoryRecord record) {
+    Map<String, Object> attrs = record.attributes() == null ? Map.of() : record.attributes();
+    Object raw = attrs.get("docker");
+    if (!(raw instanceof Map<?, ?> map)) {
+      return new DockerSettings(false, null, null);
+    }
+    return new DockerSettings(
+        boolValue(map.get("connectorEnabled")),
+        intValue(map.get("connectorPort")),
+        blankToNull(map.get("connectorPublicUrl") == null ? null : map.get("connectorPublicUrl").toString()));
+  }
+
+  private DockerSettings mergeDocker(DockerSettings current, DockerSettings update) {
+    if (update == null) {
+      return normalizeDocker(current);
+    }
+    if (Boolean.FALSE.equals(update.connectorEnabled())) {
+      return normalizeDocker(new DockerSettings(false, null,
+          update.connectorPublicUrl() == null ? current.connectorPublicUrl() : update.connectorPublicUrl()));
+    }
+    return normalizeDocker(new DockerSettings(
+        update.connectorEnabled() == null ? current.connectorEnabled() : update.connectorEnabled(),
+        update.connectorPort() == null ? current.connectorPort() : update.connectorPort(),
+        update.connectorPublicUrl() == null ? current.connectorPublicUrl() : update.connectorPublicUrl()));
+  }
+
+  private Map<String, Object> dockerAttributes(DockerSettings settings) {
+    DockerSettings normalized = normalizeDocker(settings);
+    Map<String, Object> attrs = new LinkedHashMap<>();
+    attrs.put("connectorEnabled", normalized.connectorEnabled());
+    if (normalized.connectorPort() != null) {
+      attrs.put("connectorPort", normalized.connectorPort());
+    }
+    if (normalized.connectorPublicUrl() != null) {
+      attrs.put("connectorPublicUrl", normalized.connectorPublicUrl());
+    }
+    return attrs;
+  }
+
+  private void validateDockerConnectorPort(Long existingRepositoryId, DockerSettings settings) {
+    if (settings == null) {
+      return;
+    }
+    if (Boolean.TRUE.equals(settings.connectorEnabled()) && settings.connectorPort() == null) {
+      throw new RepositoryValidationException("docker.connector.port is required when connector is enabled");
+    }
+    if (settings.connectorPort() == null) {
+      return;
+    }
+    int port = settings.connectorPort();
+    if (port <= 0 || port > 65535) {
+      throw new RepositoryValidationException("docker.connector.port must be between 1 and 65535");
+    }
+    if (port == serverPort) {
+      throw new RepositoryValidationException(
+          "docker.connector.port " + port + " conflicts with server.port");
+    }
+    if (port == managementPort) {
+      throw new RepositoryValidationException(
+          "docker.connector.port " + port + " conflicts with management.server.port");
+    }
+    for (RepositoryRecord record : repositoryDao.list()) {
+      if (existingRepositoryId != null && Objects.equals(existingRepositoryId, record.id())) {
+        continue;
+      }
+      if (record.format() != RepositoryFormat.DOCKER) {
+        continue;
+      }
+      DockerSettings other = readDockerAttributes(record);
+      if (Objects.equals(other.connectorPort(), port)) {
+        throw new RepositoryValidationException(
+            "docker.connector.port " + port + " is already used by repository " + record.name());
+      }
     }
   }
 
@@ -386,6 +520,22 @@ public class RepositoryService {
     }
   }
 
+  private void syncDockerConnectorsAfterCommit(RepositoryFormat format) {
+    if (dockerConnectorRuntime == null || format != RepositoryFormat.DOCKER) {
+      return;
+    }
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      dockerConnectorRuntime.sync();
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+      @Override
+      public void afterCommit() {
+        dockerConnectorRuntime.sync();
+      }
+    });
+  }
+
   private void invalidateNpmMemberAfterCommit(RepositoryFormat format, long repositoryId) {
     if (npmGroupPackumentCache != null && format == RepositoryFormat.NPM) {
       npmGroupPackumentCache.invalidateMemberAfterCommit(repositoryId);
@@ -411,15 +561,19 @@ public class RepositoryService {
   }
 
   private void invalidateGroupMemberMemberAfterCommit(RepositoryFormat format, long repositoryId) {
-    if (groupMemberAssetCache != null && (format == RepositoryFormat.NPM || format == RepositoryFormat.PYPI)) {
+    if (groupMemberAssetCache != null && usesGroupMemberAssetCache(format)) {
       groupMemberAssetCache.invalidateMemberAfterCommit(repositoryId);
     }
   }
 
   private void invalidateGroupMemberGroupAfterCommit(RepositoryFormat format, long groupId) {
-    if (groupMemberAssetCache != null && (format == RepositoryFormat.NPM || format == RepositoryFormat.PYPI)) {
+    if (groupMemberAssetCache != null && usesGroupMemberAssetCache(format)) {
       groupMemberAssetCache.invalidateGroupAfterCommit(groupId);
     }
+  }
+
+  private static boolean usesGroupMemberAssetCache(RepositoryFormat format) {
+    return format == RepositoryFormat.NPM || format == RepositoryFormat.PYPI || format == RepositoryFormat.DOCKER;
   }
 
   // ---- view assembly --------------------------------------------------------
@@ -443,6 +597,7 @@ public class RepositoryService {
     HostedSettings hosted = null;
     ProxySettings proxy = null;
     RawSettings raw = record.format() == RepositoryFormat.RAW ? readRawAttributes(record) : null;
+    DockerSettings docker = record.format() == RepositoryFormat.DOCKER ? readDockerAttributes(record) : null;
     GroupSettings group = null;
     switch (record.type()) {
       case HOSTED -> hosted = new HostedSettings(
@@ -455,7 +610,7 @@ public class RepositoryService {
         record.id(), record.name(), record.recipeName(),
         record.format(), record.type(), record.online(),
         blobStoreName, record.strictContentTypeValidation(), url,
-        hosted, proxy, raw, group);
+        hosted, proxy, raw, docker, group);
   }
 
   private Map<Long, String> blobStoreNameIndex() {
@@ -550,6 +705,10 @@ public class RepositoryService {
     if (settings.remoteUrl() == null || settings.remoteUrl().isBlank()) {
       throw new RepositoryValidationException("proxy.remoteUrl is required");
     }
+    if (settings.remotePassword() != null && !settings.remotePassword().isBlank()
+        && (settings.remoteUsername() == null || settings.remoteUsername().isBlank())) {
+      throw new RepositoryValidationException("proxy.remoteUsername is required when proxy.remotePassword is set");
+    }
     try {
       outboundPolicy.validateHttpUri(settings.remoteUrl(), "proxy.remoteUrl");
     } catch (SecurityValidationException e) {
@@ -570,7 +729,20 @@ public class RepositoryService {
         incoming.remoteUrl() == null ? base.remoteUrl() : incoming.remoteUrl(),
         incoming.contentMaxAgeMinutes() == null ? base.contentMaxAgeMinutes() : incoming.contentMaxAgeMinutes(),
         incoming.metadataMaxAgeMinutes() == null ? base.metadataMaxAgeMinutes() : incoming.metadataMaxAgeMinutes(),
-        incoming.autoBlock() == null ? base.autoBlock() : incoming.autoBlock());
+        incoming.autoBlock() == null ? base.autoBlock() : incoming.autoBlock(),
+        incoming.remoteUsername() == null ? base.remoteUsername() : blankToNull(incoming.remoteUsername()),
+        mergedProxyPassword(base, incoming),
+        null);
+  }
+
+  private static String mergedProxyPassword(ProxySettings base, ProxySettings incoming) {
+    if (incoming.remotePassword() != null && !incoming.remotePassword().isBlank()) {
+      return incoming.remotePassword();
+    }
+    if (Boolean.FALSE.equals(incoming.remotePasswordConfigured())) {
+      return null;
+    }
+    return base.remotePassword();
   }
 
   private static Map<String, Object> proxyAttributes(ProxySettings proxy) {
@@ -579,6 +751,12 @@ public class RepositoryService {
     if (proxy.contentMaxAgeMinutes() != null) map.put("contentMaxAgeMinutes", proxy.contentMaxAgeMinutes());
     if (proxy.metadataMaxAgeMinutes() != null) map.put("metadataMaxAgeMinutes", proxy.metadataMaxAgeMinutes());
     if (proxy.autoBlock() != null) map.put("autoBlock", proxy.autoBlock());
+    if (proxy.remoteUsername() != null && !proxy.remoteUsername().isBlank()) {
+      map.put("remoteUsername", proxy.remoteUsername());
+    }
+    if (proxy.remotePassword() != null && !proxy.remotePassword().isBlank()) {
+      map.put("remotePassword", proxy.remotePassword());
+    }
     return map;
   }
 
@@ -619,14 +797,25 @@ public class RepositoryService {
         stringValue(proxyMap.get("remoteUrl"), record.proxyRemoteUrl()),
         intValue(proxyMap.get("contentMaxAgeMinutes")),
         intValue(proxyMap.get("metadataMaxAgeMinutes")),
-        boolValue(proxyMap.get("autoBlock")));
+        boolValue(proxyMap.get("autoBlock")),
+        blankToNull(proxyMap.get("remoteUsername") == null ? null : proxyMap.get("remoteUsername").toString()),
+        blankToNull(proxyMap.get("remotePassword") == null ? null : proxyMap.get("remotePassword").toString()),
+        null);
   }
 
   private static ProxySettings readProxyAttributesOrDefaults(RepositoryRecord record) {
     ProxySettings parsed = readProxyAttributes(record);
-    return parsed == null
+    ProxySettings effective = parsed == null
         ? new ProxySettings(record.proxyRemoteUrl(), null, null, null)
         : parsed;
+    return new ProxySettings(
+        effective.remoteUrl(),
+        effective.contentMaxAgeMinutes(),
+        effective.metadataMaxAgeMinutes(),
+        effective.autoBlock(),
+        effective.remoteUsername(),
+        null,
+        effective.remotePassword() != null && !effective.remotePassword().isBlank());
   }
 
   private List<Long> resolveMemberIds(String groupName, RepositoryFormat format, GroupSettings group) {
@@ -672,6 +861,10 @@ public class RepositoryService {
 
   private static String stringValue(Object value, String fallback) {
     return value == null ? fallback : value.toString();
+  }
+
+  private static String blankToNull(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
   }
 
   private static Integer intValue(Object value) {

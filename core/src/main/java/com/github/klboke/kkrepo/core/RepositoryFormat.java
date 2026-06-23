@@ -10,6 +10,7 @@ public enum RepositoryFormat {
   PYPI,
   GO,
   HELM,
+  DOCKER,
   NUGET,
   RUBYGEMS,
   YUM,

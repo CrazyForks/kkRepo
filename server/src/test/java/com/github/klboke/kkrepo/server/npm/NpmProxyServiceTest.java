@@ -87,9 +87,7 @@ class NpmProxyServiceTest {
         REMOTE,
         1440,
         1440,
-        true,
-        null,
-        List.of());
+        true, null, List.of());
   }
 
   private static HttpRemoteFetcher.Result result(String body) {

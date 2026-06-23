@@ -1,6 +1,22 @@
-# Docker 仓库实现调研与开发计划
+# Docker 仓库实现说明
 
-本文面向 kkrepo 新增 Docker/OCI 仓库格式的开发规划。目标不是重新发明镜像仓库协议，而是在 Nexus Docker 仓库行为、Docker Registry HTTP API V2 和 OCI Distribution 规范之间取兼容交集，并按 kkrepo 的 MySQL + OSS/S3 + 多副本约束落地。
+本文记录 kkrepo Docker/OCI 仓库格式的设计和实现说明。目标不是重新发明镜像仓库协议，而是在 Nexus Docker 仓库行为、Docker Registry HTTP API V2 和 OCI Distribution 规范之间取兼容交集，并按 kkrepo 的 MySQL + OSS/S3 + 多副本约束落地。
+
+## 当前支持状态
+
+Docker / OCI 已作为受支持仓库格式实现：
+
+- `docker-hosted`、`docker-proxy`、`docker-group` recipe。
+- Registry HTTP API V2 `/v2/...` 路由，支持共享入口 path-based routing 和仓库级 connector port。
+- Bearer token login、仓库权限、匿名/读/写/删除授权，以及 Docker challenge/token 行为。
+- Hosted push/pull、可恢复 upload session、upload complete 流式提交、blob range 读取、manifest/tag/blob 删除、跨仓库 blob mount 和 cleanup policy worker。
+- Proxy pull，包括上游 registry auth、Docker Hub `library` 命名空间补偿、manifest/blob/tag 缓存、negative cache、digest 校验和上游指标。
+- Group pull，包括按成员顺序解析、group member cache，以及成员内容变更后的 cache 失效。
+- OCI image manifest/index、subject/referrers 索引、`/referrers/<digest>`、`artifactType` 过滤和 `OCI-Subject` 响应。
+- Docker browse 详情、Docker 迁移验证脚本、真实客户端兼容脚本，以及手动/按 label 触发的 OCI conformance workflow。
+- Docker 专项观测指标，包括 upload、mount、cache、digest verification、cleanup、referrers、active transfer 和 proxy upstream。
+
+Docker Registry V1 API 和 `docker search` 不属于当前支持面。现代 Docker/OCI 工作流使用 Registry V2 和 OCI Distribution；如果后续 Nexus 迁移出现明确需求，可以再评估 search-only 兼容层。
 
 ## 调研基线
 
@@ -18,7 +34,7 @@
 - Docker pull 的最小可用面是 `/v2/`、manifest GET/HEAD、blob GET/HEAD、tag list 和认证 challenge。Docker push 必须支持 blob upload session，实际客户端常用 `POST /blobs/uploads/` + `PATCH` + `PUT ?digest=...`，不能只做单次 PUT。
 - Docker/OCI 是内容寻址模型。blob、manifest digest 必须由服务端按原始字节计算，不能重排 JSON、改写 timestamp 或规范化 body 后再算 digest。
 - OCI referrers 已经成为镜像签名、SBOM、attestation 等场景的关键能力，第一阶段可以不阻塞普通 `docker pull/push`，但数据模型应一次性预留 subject/referrers 索引。
-- Nexus Docker 既支持 path-based routing，也支持 port connectors。kkrepo 第一阶段应保留独立 Docker 流量端口，避免大镜像层上传/下载挤占主服务端口、管理 UI、REST API 和普通制品协议请求；该端口内仍优先使用 path-based routing 解析仓库。Nexus 式“每个仓库配置一个 connector 端口”可以作为后续兼容增强。
+- Nexus Docker 既支持 path-based routing，也支持可选的 HTTP/HTTPS port connectors。kkrepo 第一阶段应支持仓库级 connector 作为可选独立流量入口，避免大镜像层上传/下载挤占主服务端口、管理 UI、REST API 和普通制品协议请求；但 Docker 仓库不应强制配置 connector 端口，未启用 connector 时仍可通过 path-based routing 或反向代理共享入口访问。具体监听端口不应是全局单值，而应作为 Docker 仓库创建/更新时的仓库属性保存。每个启用 connector 的 Docker 仓库可以配置不同 connector 端口，服务端通过本地端口映射到固定 repository id；path-based routing 仍可作为共享入口或反向代理场景的兼容形态。
 
 ## 功能范围
 
@@ -53,13 +69,11 @@
    - 使用 `docker`、`oras` 或 `skopeo` 验证 hosted push/pull、proxy pull、group pull。
    - 引入 OCI Distribution conformance 作为补充验收，按 Pull、Push、Content Discovery、Content Management 分阶段打开。
 
-### 第二阶段建议实现
+### 可选加固和非目标
 
-- OCI referrers API：`GET /v2/<repo>/<image>/referrers/<digest>`，支持 `artifactType` 过滤。
-- OCI subject 入库和 referrers 索引回填，覆盖 cosign signature、SBOM、attestation 等 artifact。
-- `/v2/_catalog`，只对管理员或显式允许的 registry scope 开放。
-- Docker V1 API 和 `docker search` 兼容。Nexus 文档仍提到 V1 fallback，但现代 Docker/OCI 工作流不应依赖它，优先级低于 V2/OCI。
-- Nexus 式每仓库 port connector。第一阶段先提供共享 Docker 专用端口，满足流量隔离；如需要完全兼容历史 Nexus port-based 镜像引用，再实现 per-repository connector 端口映射。
+- 高级 connector TLS/SNI 管理和端口级 access log 集成属于部署侧加固项。
+- 跨 blob store 的 server-side copy blob mount 是可选优化；当前实现会在源和目标 blob store 不同时 fallback 到普通 upload。
+- Docker Registry V1 API 和 `docker search` 为非目标，除非后续出现真实迁移需求，再评估 search-only 兼容层。
 
 ## URL 与路由设计
 
@@ -67,24 +81,23 @@
 
 ## Docker 流量端口设计
 
-Docker 镜像层通常远大于 Maven/npm/PyPI 等包，请求连接持续时间也更长。第一阶段应把 Docker registry 流量从主应用端口拆到独立 connector，建议默认端口：
+Docker 镜像层通常远大于 Maven/npm/PyPI 等包，请求连接持续时间也更长。第一阶段应支持把 Docker registry 流量从主应用端口拆到可选的仓库级 connector，并把具体端口绑定到 Docker 仓库配置中，而不是使用一个全局 Docker 端口：
 
 - 主服务端口：`8080`，继续服务 `/repository/...`、`/admin/`、`/browse/` 和管理 REST。
 - 管理端口：`8081`，继续服务 actuator。
-- Docker registry 端口：例如 `8082`，只服务 `/v2/...` 和 Docker token flow。
+- Docker 仓库 connector 端口：可选启用。例如 `docker-hosted` 仓库配置 `8082`，`docker-proxy` 仓库配置 `8083`，只服务该仓库的 `/v2/...` 和 Docker token flow；未配置 connector 的仓库仍可通过 path-based routing 或反向代理共享入口访问。
 
-独立端口的目标不是替代 path-based routing，而是提供流量隔离面：
+仓库级 connector 端口的目标不是替代 path-based routing，而是提供更清晰的流量隔离面：
 
-- 入口层可以给 Docker 端口配置更长的 upload/download timeout、更大的 body size、更宽的连接池和独立限流。
+- 入口层可以给不同 Docker 仓库端口配置更长的 upload/download timeout、更大的 body size、更宽的连接池和独立限流。
 - 主服务端口可以保持较短 timeout，避免镜像层长连接拖慢 UI、权限管理、迁移控制台和普通仓库协议请求。
-- Kubernetes Service / Ingress 可以独立暴露 Docker 端口，按 Docker 流量做 HPA、监控、告警和熔断。
+- Kubernetes Service / Ingress 可以按仓库端口独立暴露 Docker 流量，便于做 HPA、监控、告警和熔断。
 - Tomcat 层应尽量给 Docker connector 配置独立 executor、`maxConnections`、`acceptCount`、`connectionTimeout` 和上传并发限制。单独监听端口如果仍共用同一线程池，只能解决入口路由隔离，不能完全解决 JVM 内线程争用。
 - OSS/S3 客户端也应为 Docker 大对象读写预留独立 bulkhead 或连接池参数，避免 Docker layer 拉取耗尽普通制品请求的对象存储连接。
 
-配置建议预留：
+全局运行时配置建议预留，用于启用 connector 能力和控制共享资源池，不包含具体仓库端口：
 
 - `kkrepo.docker.connector.enabled=true`
-- `kkrepo.docker.connector.port=8082`
 - `kkrepo.docker.connector.threads.max`
 - `kkrepo.docker.connector.max-connections`
 - `kkrepo.docker.connector.accept-count`
@@ -93,27 +106,42 @@ Docker 镜像层通常远大于 Maven/npm/PyPI 等包，请求连接持续时间
 - `kkrepo.docker.transfer.max-concurrent-downloads`
 - `kkrepo.docker.transfer.response-buffer-size`
 
+Docker 仓库创建/更新属性建议预留：
+
+- `docker.connector.enabled=false`，默认关闭；打开后才需要配置端口。
+- `docker.connector.port=8082`，仅当 `docker.connector.enabled=true` 时必填。
+- `docker.connector.public-url=https://registry.example:8082`，可选，用于 UI 示例、token `service`/realm 展示和反向代理场景。
+
+端口约束：
+
+- `docker.connector.port` 只对启用 connector 的 Docker format 仓库有效，并应在同一 kkrepo 部署内唯一。
+- 未启用 connector 时允许端口为空，不能因为端口为空阻断仓库创建或迁移。
+- 已启用 connector 的端口不能与主服务端口、管理端口或其它 Docker 仓库 connector 端口冲突。
+- 仓库创建/更新时需要在 MySQL 事务中校验已启用 connector 的端口唯一性；多副本启动时根据 MySQL 中的 Docker 仓库属性构建本地 `port -> repository_id` 映射。
+- 如果运行时暂不支持无重启新增监听端口，第一阶段可以要求端口变更后滚动重启实例，但文档和 UI 必须明确这一运维语义。
+
 路由策略：
 
-- Docker 专用端口主入口：`http(s)://<host>:<docker-port>/v2/<repo>/<image...>/...`。
-- Docker 客户端镜像引用：`<host>:<docker-port>/<repo>/<image>:<tag>`。
-- 后续如果实现 per-repository connector，则可把某个端口直接绑定到仓库，客户端引用变为 `<host>:<repo-port>/<image>:<tag>`，服务端再把该 connector 的 local port 映射到固定 repository id。
+- 仓库级 connector 主入口：`http(s)://<host>:<repo-port>/v2/<image...>/...`。
+- Docker 客户端镜像引用：`<host>:<repo-port>/<image>:<tag>`。
+- 可选共享入口或反向代理 path-based 形态：`http(s)://<host>:<shared-port>/v2/<repo>/<image...>/...`，客户端引用为 `<host>:<shared-port>/<repo>/<image>:<tag>`。
 
 路径解析规则：
 
 | 请求 | 解析方式 |
 | --- | --- |
 | `GET /v2/` | registry 探测，不绑定具体仓库 |
-| `/v2/<repo>/<image...>/manifests/<reference>` | `<repo>` 为 kkrepo 仓库名，`<image...>` 为 Docker repository name |
-| `/v2/<repo>/<image...>/blobs/<digest>` | digest 为 `sha256:<hex>` 等 OCI digest |
-| `/v2/<repo>/<image...>/blobs/uploads/` | 创建 upload session |
-| `/v2/<repo>/<image...>/blobs/uploads/<uuid>` | 读取、追加、完成或取消 upload session |
-| `/v2/<repo>/<image...>/tags/list` | tag list |
-| `/v2/<repo>/<image...>/referrers/<digest>` | OCI referrers |
+| 仓库级 connector 上的 `/v2/<image...>/manifests/<reference>` | 仓库由本地监听端口映射得到，`<image...>` 为 Docker repository name |
+| path-based 共享入口上的 `/v2/<repo>/<image...>/manifests/<reference>` | `<repo>` 为 kkrepo 仓库名，`<image...>` 为 Docker repository name |
+| `/v2/<image...>/blobs/<digest>` 或 `/v2/<repo>/<image...>/blobs/<digest>` | digest 为 `sha256:<hex>` 等 OCI digest |
+| `/v2/<image...>/blobs/uploads/` 或 `/v2/<repo>/<image...>/blobs/uploads/` | 创建 upload session |
+| `/v2/<image...>/blobs/uploads/<uuid>` 或 `/v2/<repo>/<image...>/blobs/uploads/<uuid>` | 读取、追加、完成或取消 upload session |
+| `/v2/<image...>/tags/list` 或 `/v2/<repo>/<image...>/tags/list` | tag list |
+| `/v2/<image...>/referrers/<digest>` 或 `/v2/<repo>/<image...>/referrers/<digest>` | OCI referrers |
 
 实现时不能按固定段数切分 Docker image name。`<image...>` 允许多级路径，应通过右侧哨兵段解析：`/manifests/`、`/blobs/`、`/blobs/uploads/`、`/tags/list`、`/referrers/`。
 
-为了兼容迁移和代理场景，可以额外预留内部路由 `/repository/<repo>/v2/<image...>/...`，但不作为 Docker 客户端主入口。公开客户端文档应使用 Docker 专用端口上的 path-based routing 形态。
+为了兼容迁移和代理场景，可以额外预留内部路由 `/repository/<repo>/v2/<image...>/...`，但不作为 Docker 客户端主入口。公开客户端文档应优先使用仓库级 connector port 的 port-based 形态；如部署了共享入口或反向代理，再补充 path-based routing 示例。
 
 ## 数据模型规划
 
@@ -390,8 +418,8 @@ tag list：
 Admin UI：
 
 - 仓库 recipe 下拉新增 `docker-hosted`、`docker-proxy`、`docker-group`。
-- Docker 仓库配置展示 Docker 专用端口下的 path-based pull/push 示例。
-- 增加 Docker connector 配置视图，展示当前 Docker 端口、入口 URL、连接数、上传/下载并发和限流状态。
+- Docker 仓库配置展示仓库级 connector port、public URL，以及 port-based 和可选 path-based pull/push 示例。
+- 增加 Docker connector 配置视图，展示每个 Docker 仓库的 connector 端口、入口 URL、连接数、上传/下载并发和限流状态。
 - Proxy 配置新增远端认证、Docker Hub library namespace 提示、remote URL path 校验。
 - Group 配置复用成员顺序管理。
 - Repository cache 页面支持清理 Docker manifest/tag/blob cache。
@@ -436,7 +464,8 @@ Browse UI：
 - group 成员顺序、tag 冲突、blob 查找。
 - anonymous pull 和 private repo challenge。
 - write policy：`ALLOW`、`ALLOW_ONCE`、`DENY`。
-- Docker 专用端口 path-based routing：`<host>:<docker-port>/<repo>/<image>:<tag>`。
+- 仓库级 connector port routing：`<host>:<repo-port>/<image>:<tag>`。
+- 可选共享入口 path-based routing：`<host>:<shared-port>/<repo>/<image>:<tag>`。
 
 对比项：
 
@@ -479,7 +508,7 @@ Content Management 可最后通过，因为 DELETE blob/manifest 与 GC、cleanu
 
 - 在 Nexus 参考实例创建 docker hosted/proxy/group。
 - 抓取 `docker login/pull/push/delete` 请求日志。
-- 在 `compat-test` 中先写失败用例，锁定 Docker 专用端口、path-based routing、401 challenge、upload response header。
+- 在 `compat-test` 中先写失败用例，锁定仓库级 connector port routing、可选共享入口 path-based routing、401 challenge、upload response header。
 - 输出 Nexus 行为矩阵，作为后续实现验收标准。
 
 ### M1：格式骨架和路由
@@ -489,14 +518,16 @@ Content Management 可最后通过，因为 DELETE blob/manifest 与 GC、cleanu
 - 根 `pom.xml` 增加 `protocol-docker`。
 - 新增 Docker path parser、digest parser、media type 常量、error payload。
 - 新增 `/v2/` 和 `/v2/<repo>/...` controller skeleton。
-- 新增 Docker 专用 Tomcat connector 或等效独立入口配置，默认只挂载 Docker registry 路由。
+- 新增 Docker connector 管理器或等效独立入口配置，按 Docker 仓库属性建立 `port -> repository_id` 映射，默认只挂载 Docker registry 路由。
 - `RepositorySecurityFilter` 或新 filter 识别 `/v2/...`，但 challenge 交给 Docker auth 支持。
 - Admin/Browse 仓库列表能显示 Docker format。
 
 验收：
 
-- Docker 专用端口 `GET /v2/` 行为与 Nexus 对齐。
+- 仓库级 Docker connector 端口 `GET /v2/` 行为与 Nexus 对齐。
+- 不配置仓库级 Docker connector 端口时，Docker 仓库仍可创建，且不启动额外监听端口。
 - Docker 大对象请求不经过主服务端口，主端口仍能正常访问 `/admin/`、`/browse/`、`/repository/...`。
+- 创建多个 Docker 仓库时可以配置不同 `docker.connector.port`，重复端口会被拒绝。
 - 创建 Docker 三类仓库成功。
 - 不支持的 Docker endpoint 返回 registry error JSON，而不是 Maven/npm 错误。
 
@@ -615,8 +646,9 @@ Docker 实现必须满足：
 
 | 风险 | 影响 | 缓解 |
 | --- | --- | --- |
-| Docker 大对象流量和主服务共用端口、线程池、对象存储连接 | 大镜像 push/pull 可能拖慢 UI、管理 REST 和普通制品协议 | 第一阶段提供 Docker 专用端口，并配置独立 connector/executor、连接数、timeout、上传下载并发和 OSS/S3 bulkhead |
-| Docker path-based routing 与 `/repository/<repo>` 目标不一致 | 客户端无法直接使用 Docker CLI | 在 Docker 专用端口提供 `/v2/<repo>/...` 路由，以 Nexus Docker 行为为准 |
+| Docker 大对象流量和主服务共用端口、线程池、对象存储连接 | 大镜像 push/pull 可能拖慢 UI、管理 REST 和普通制品协议 | 第一阶段提供可选的仓库级 Docker connector 端口，并配置独立 connector/executor、连接数、timeout、上传下载并发和 OSS/S3 bulkhead |
+| Docker connector port 使用全局单值 | 多个 Docker 仓库无法使用不同端口，port-based image reference 兼容性不足 | 把可选的 `docker.connector.port` 放入 Docker 仓库创建/更新属性，并用 MySQL 事务校验已启用 connector 的端口唯一性 |
+| Docker path-based routing 与 `/repository/<repo>` 目标不一致 | 客户端无法直接使用 Docker CLI | 仓库级 connector port 提供 `/v2/<image>/...` 主入口；共享入口或反向代理场景再提供 `/v2/<repo>/...` path-based 兼容入口 |
 | chunked upload 依赖本地临时文件 | 多副本切换后 push 失败或数据丢失 | upload session 和 chunk staging 持久化到 MySQL/OSS |
 | manifest JSON 被重写 | digest 不匹配，客户端拒绝 | 保存原始 bytes，解析只用于索引 |
 | proxy 上游 Bearer token 处理不完整 | Docker Hub/远端 registry 拉取失败 | 单独实现 upstream auth flow 和 token cache |
@@ -624,16 +656,16 @@ Docker 实现必须满足：
 | tag 并发覆盖 | tag 指针错乱 | `docker_tag` 唯一约束 + 事务更新 |
 | DELETE 与 GC 过早删除 blob | 已有镜像拉取失败 | 引用表驱动 GC，DELETE 先逻辑删除 |
 
-## 推荐首个可交付版本
+## 已交付范围
 
-首个可交付版本建议定义为：
+当前支持的 Docker / OCI 范围包括：
 
 - 支持 `docker-hosted`。
-- 支持 Docker 专用端口和 path-based `/v2/<repo>/<image>`。
+- 支持可选的仓库级 Docker connector 端口和 port-based `/v2/<image>`；不配置 connector 时仍能创建仓库，并通过可选共享入口支持 path-based `/v2/<repo>/<image>`。
 - 支持 Bearer token login。
 - 支持 Docker schema2 和 OCI image manifest/index。
 - 支持普通 `docker push`、`docker pull`、`docker tag`、`docker manifest inspect`。
 - 支持 tag list 和 manifest/blob HEAD。
-- 暂不承诺 proxy、group、referrers、catalog、V1 search、每仓库独立 port connector。
+- 支持 Docker proxy/group 读取路径、cross-repository blob mount、referrers、content management cleanup、迁移验证、OCI conformance workflow 和 Docker 专项指标。
 
-第二个版本再补 proxy/group，第三个版本补 referrers、migration 和 OCI conformance full workflow。这样可以最早闭环真实 Docker 客户端，又不会把最复杂的远端认证、group 合并和 GC 一次性压进首版。
+剩余非核心增强主要是 connector TLS/SNI/access-log 加固、可选跨 blob store copy 优化，以及真实 Nexus 兼容需求出现时再评估的 search-only shim。

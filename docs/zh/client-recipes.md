@@ -299,12 +299,35 @@ curl -O https://nexus.example.com/repository/raw-group/releases/archive.tar.gz
 
 ## Docker / OCI
 
-Docker / OCI Registry 支持正在开发中，见 [Docker / OCI 开发计划](dev/docker-repository-implementation-plan.md)。
+Docker / OCI Registry 使用 Registry HTTP API V2 的 `/v2/...` 路由，不走普通制品仓库的 `/repository/<repo>/...` 路由。
 
-计划中的客户端形态使用 Docker 专用端口和 path-based repository routing：
+共享入口或反向代理部署可以使用 path-based repository routing：
 
 ```text
-<host>:<docker-port>/<repo>/<image>:<tag>
+<host>:<shared-port>/<repo>/<image>:<tag>
+```
+
+示例：
+
+```bash
+docker login nexus.example.com
+docker pull nexus.example.com/docker-proxy/library/alpine:3.20
+docker tag alpine:3.20 nexus.example.com/docker-hosted/team/alpine:3.20
+docker push nexus.example.com/docker-hosted/team/alpine:3.20
+docker pull nexus.example.com/docker-group/team/alpine:3.20
+```
+
+配置仓库级 Docker connector port 后，也可以暴露标准 Docker image 形态：
+
+```text
+<host>:<repo-port>/<image>:<tag>
+```
+
+本地开发环境可以用真实客户端矩阵脚本做 hosted push/pull、proxy pull、group pull
+以及可选的 ORAS/Skopeo smoke：
+
+```bash
+scripts/docker-compat/client-compat.sh
 ```
 
 不要假设 Docker pull/push 可以通过 `/repository/<repo>/...` 工作。

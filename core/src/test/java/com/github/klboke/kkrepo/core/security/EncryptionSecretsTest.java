@@ -17,6 +17,7 @@ class EncryptionSecretsTest {
   void fallsBackToDevelopmentDefaultsWhenUnconfigured() {
     assertFalse(EncryptionSecrets.credentialSecretConfigured());
     assertFalse(EncryptionSecrets.apiKeyPayloadSecretConfigured());
+    assertEquals("kkrepo-development-credential-secret", EncryptionSecrets.DEV_CREDENTIAL_SECRET);
     assertEquals(EncryptionSecrets.DEV_CREDENTIAL_SECRET, EncryptionSecrets.credentialSecret());
     assertEquals(EncryptionSecrets.DEV_API_KEY_PAYLOAD_SECRET, EncryptionSecrets.apiKeyPayloadSecret());
   }
