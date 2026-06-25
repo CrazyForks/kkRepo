@@ -48,7 +48,7 @@ kkrepo 兼容 Nexus 的 `/repository/<repo>/...` URL 布局、客户端协议行
 
 执行步骤：
 
-1. 填写 `Source URL`、`Source username`、`Source password` 和 `Source version`。
+1. 填写 `Source URL`、`Source username` 和 `Source password`。
 2. 根据源 Nexus 规模调整 `Page size` 和 `Concurrency`；如果仓库数据量较大，建议把 `Concurrency` 从默认 `8` 调整到 `32`。
 3. 保持 `Metadata since` 为空。
 4. 点击 `Sync metadata`，扫描全部仓库元数据。
