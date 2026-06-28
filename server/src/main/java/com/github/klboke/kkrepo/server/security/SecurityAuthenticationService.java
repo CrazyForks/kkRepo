@@ -140,6 +140,15 @@ public class SecurityAuthenticationService {
   }
 
   @Transactional
+  public Optional<AuthenticatedSubject> authenticateCargo(HttpServletRequest request) {
+    Optional<AuthenticatedSubject> apiKey = authenticateCargoApiKey(request);
+    if (apiKey.isPresent()) {
+      return apiKey;
+    }
+    return authenticate(request);
+  }
+
+  @Transactional
   public Optional<AuthenticatedSubject> authenticateCredentials(String username, String password) {
     if (username == null || username.isBlank() || password == null) {
       return Optional.empty();
@@ -243,13 +252,26 @@ public class SecurityAuthenticationService {
       return Optional.empty();
     }
     if (apiKeyAuthCache == null) {
-      return resolveApiKey(token);
+      return resolveApiKey(ApiKeyTokenCandidate.fromPresentedToken(token));
     }
-    return apiKeyAuthCache.find(token, () -> resolveApiKey(token));
+    return apiKeyAuthCache.find(token, () -> resolveApiKey(ApiKeyTokenCandidate.fromPresentedToken(token)));
   }
 
-  private Optional<AuthenticatedSubject> resolveApiKey(String token) {
-    Optional<ApiKeyRecord> match = findApiKey(token);
+  private Optional<AuthenticatedSubject> authenticateCargoApiKey(HttpServletRequest request) {
+    for (String token : cargoApiKeyTokens(request)) {
+      Optional<AuthenticatedSubject> resolved = apiKeyAuthCache == null
+          ? resolveApiKey(ApiKeyTokenCandidate.fromPresentedCargoToken(token))
+          : apiKeyAuthCache.find("cargo:" + token,
+              () -> resolveApiKey(ApiKeyTokenCandidate.fromPresentedCargoToken(token)));
+      if (resolved.isPresent()) {
+        return resolved;
+      }
+    }
+    return Optional.empty();
+  }
+
+  private Optional<AuthenticatedSubject> resolveApiKey(List<ApiKeyTokenCandidate> candidates) {
+    Optional<ApiKeyRecord> match = findApiKey(candidates);
     if (match.isEmpty() || !activeApiKey(match.get())) {
       return Optional.empty();
     }
@@ -264,8 +286,8 @@ public class SecurityAuthenticationService {
     return Optional.of(toSubject(owner.get(), "api-key", null, apiKey.id()));
   }
 
-  private Optional<ApiKeyRecord> findApiKey(String token) {
-    for (ApiKeyTokenCandidate candidate : ApiKeyTokenCandidate.fromPresentedToken(token)) {
+  private Optional<ApiKeyRecord> findApiKey(List<ApiKeyTokenCandidate> candidates) {
+    for (ApiKeyTokenCandidate candidate : candidates) {
       String hash = SecurityHashing.sha256(candidate.tokenMaterial());
       Optional<ApiKeyRecord> match = candidate.domainScoped()
           ? securityDao.findApiKeyByDomainAndHash(candidate.domain(), hash)
@@ -859,7 +881,39 @@ public class SecurityAuthenticationService {
     if (fromKkRepoApiKey != null) {
       return fromKkRepoApiKey;
     }
-    return bearerToken(request);
+    String bearer = bearerToken(request);
+    if (bearer != null) {
+      return bearer;
+    }
+    return null;
+  }
+
+  private List<String> cargoApiKeyTokens(HttpServletRequest request) {
+    List<String> tokens = new ArrayList<>();
+    addToken(tokens, headerValue(request, tokenHeader));
+    addToken(tokens, headerValue(request, "X-Nexus-Plus-Api-Key"));
+    addToken(tokens, bearerToken(request));
+    String authorization = request.getHeader("Authorization");
+    if (authorization != null && !authorization.isBlank()) {
+      String trimmed = authorization.trim();
+      addToken(tokens, trimmed);
+      if (trimmed.regionMatches(true, 0, "Basic ", 0, 6)) {
+        addToken(tokens, trimmed.substring(6).trim());
+      } else if (trimmed.regionMatches(true, 0, "Bearer ", 0, 7)) {
+        addToken(tokens, trimmed.substring(7).trim());
+      }
+    }
+    return List.copyOf(tokens);
+  }
+
+  private static void addToken(List<String> tokens, String token) {
+    if (token == null || token.isBlank()) {
+      return;
+    }
+    String normalized = token.trim();
+    if (!tokens.contains(normalized)) {
+      tokens.add(normalized);
+    }
   }
 
   private String bearerToken(HttpServletRequest request) {

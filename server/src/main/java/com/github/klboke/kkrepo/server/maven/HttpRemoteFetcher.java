@@ -6,10 +6,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -158,6 +160,9 @@ public class HttpRemoteFetcher {
     if (req.lastModified() != null) {
       b.header("If-Modified-Since", RFC1123.format(req.lastModified()));
     }
+    if (req.authorizationHeader() != null && !req.authorizationHeader().isBlank()) {
+      b.header("Authorization", req.authorizationHeader());
+    }
     HttpRequest request = req.headOnly()
         ? b.method("HEAD", HttpRequest.BodyPublishers.noBody()).build()
         : b.GET().build();
@@ -171,6 +176,7 @@ public class HttpRemoteFetcher {
           throw new IOException("Too many redirects fetching " + req.url());
         }
         var redirected = outboundPolicy.validateHttpUri(uri.resolve(redirect.get()), "remote redirect");
+        String redirectAuthorization = req.authorizationHeaderForRedirect(uri, redirected);
         return fetchInternal(new Request(
             redirected.toString(),
             req.etag(),
@@ -179,7 +185,9 @@ public class HttpRemoteFetcher {
             req.timeoutProfile(),
             req.headOnly(),
             req.repository(),
-            req.format()), redirects + 1);
+            req.format(),
+            req.trustedHost(),
+            redirectAuthorization), redirects + 1);
       }
       Map<String, String> headers = new LinkedHashMap<>();
       response.headers().map().forEach((k, v) -> {
@@ -272,9 +280,10 @@ public class HttpRemoteFetcher {
       boolean headOnly,
       String repository,
       String format,
-      String trustedHost) {
+      String trustedHost,
+      String authorizationHeader) {
     public Request(String url, String etag, Instant lastModified, Duration timeout, boolean headOnly) {
-      this(url, etag, lastModified, timeout, TimeoutProfile.DEFAULT, headOnly, null, null, null);
+      this(url, etag, lastModified, timeout, TimeoutProfile.DEFAULT, headOnly, null, null, null, null);
     }
 
     public Request(
@@ -286,7 +295,7 @@ public class HttpRemoteFetcher {
         boolean headOnly,
         String repository,
         String format) {
-      this(url, etag, lastModified, timeout, timeoutProfile, headOnly, repository, format, null);
+      this(url, etag, lastModified, timeout, timeoutProfile, headOnly, repository, format, null, null);
     }
 
     public Request(
@@ -299,15 +308,11 @@ public class HttpRemoteFetcher {
         String repository,
         String format,
         String trustedHost) {
-      this.url = url;
-      this.etag = etag;
-      this.lastModified = lastModified;
-      this.timeout = timeout;
-      this.timeoutProfile = timeoutProfile == null ? TimeoutProfile.DEFAULT : timeoutProfile;
-      this.headOnly = headOnly;
-      this.repository = repository;
-      this.format = format;
-      this.trustedHost = trustedHost;
+      this(url, etag, lastModified, timeout, timeoutProfile, headOnly, repository, format, trustedHost, null);
+    }
+
+    public Request {
+      timeoutProfile = timeoutProfile == null ? TimeoutProfile.DEFAULT : timeoutProfile;
     }
 
     public static Request get(String url) {
@@ -315,14 +320,21 @@ public class HttpRemoteFetcher {
     }
 
     public Request withConditional(String etag, Instant lastModified) {
-      return new Request(url, etag, lastModified, timeout, timeoutProfile, headOnly, repository, format, trustedHost);
+      return new Request(url, etag, lastModified, timeout, timeoutProfile, headOnly,
+          repository, format, trustedHost, authorizationHeader);
     }
 
     public Request withTimeoutProfile(TimeoutProfile timeoutProfile) {
-      return new Request(url, etag, lastModified, timeout, timeoutProfile, headOnly, repository, format, trustedHost);
+      return new Request(url, etag, lastModified, timeout, timeoutProfile, headOnly,
+          repository, format, trustedHost, authorizationHeader);
     }
 
     public Request withRepository(RepositoryRuntime runtime) {
+      return withRepository(runtime, true);
+    }
+
+    public Request withRepository(RepositoryRuntime runtime, boolean includeAuthorization) {
+      String trusted = trustedRemoteHost(url, runtime);
       return new Request(
           url,
           etag,
@@ -332,7 +344,8 @@ public class HttpRemoteFetcher {
           headOnly,
           runtime == null ? null : runtime.name(),
           runtime == null || runtime.format() == null ? null : runtime.format().name(),
-          trustedRemoteHost(url, runtime));
+          trusted,
+          includeAuthorization && trusted != null ? remoteAuthorizationHeader(runtime) : null);
     }
 
     public String method() {
@@ -347,20 +360,75 @@ public class HttpRemoteFetcher {
       return uri;
     }
 
+    String authorizationHeaderForRedirect(URI current, URI redirected) {
+      if (authorizationHeader == null || authorizationHeader.isBlank()) {
+        return authorizationHeader;
+      }
+      if (!sameOrigin(current, redirected)) {
+        throw new SecurityValidationException("remote redirect URL origin must remain " + origin(current));
+      }
+      return authorizationHeader;
+    }
+
     private static String trustedRemoteHost(String url, RepositoryRuntime runtime) {
       if (runtime == null || runtime.proxyRemoteUrl() == null || runtime.proxyRemoteUrl().isBlank()) {
         return null;
       }
       try {
-        String baseHost = URI.create(runtime.proxyRemoteUrl()).getHost();
-        String requestHost = URI.create(url).getHost();
-        if (baseHost != null && requestHost != null && requestHost.equals(baseHost)) {
-          return baseHost;
+        URI base = URI.create(runtime.proxyRemoteUrl());
+        URI request = URI.create(url);
+        if (sameOrigin(base, request)) {
+          return base.getHost();
         }
       } catch (RuntimeException ignored) {
         return null;
       }
       return null;
+    }
+
+    private static boolean sameOrigin(URI a, URI b) {
+      return a != null
+          && b != null
+          && a.getScheme() != null
+          && b.getScheme() != null
+          && a.getHost() != null
+          && b.getHost() != null
+          && a.getScheme().equalsIgnoreCase(b.getScheme())
+          && a.getHost().equalsIgnoreCase(b.getHost())
+          && effectivePort(a) == effectivePort(b);
+    }
+
+    private static int effectivePort(URI uri) {
+      if (uri.getPort() >= 0) {
+        return uri.getPort();
+      }
+      String scheme = uri.getScheme();
+      if ("http".equalsIgnoreCase(scheme)) {
+        return 80;
+      }
+      if ("https".equalsIgnoreCase(scheme)) {
+        return 443;
+      }
+      return -1;
+    }
+
+    private static String origin(URI uri) {
+      return uri.getScheme() + "://" + uri.getHost() + ":" + effectivePort(uri);
+    }
+
+    private static String remoteAuthorizationHeader(RepositoryRuntime runtime) {
+      if (runtime == null) {
+        return null;
+      }
+      if (runtime.proxyRemoteBearerToken() != null && !runtime.proxyRemoteBearerToken().isBlank()) {
+        return "Bearer " + runtime.proxyRemoteBearerToken().trim();
+      }
+      if (runtime.proxyRemoteUsername() == null || runtime.proxyRemoteUsername().isBlank()) {
+        return null;
+      }
+      String credentials = runtime.proxyRemoteUsername().trim() + ":"
+          + (runtime.proxyRemotePassword() == null ? "" : runtime.proxyRemotePassword());
+      return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
     }
   }
 

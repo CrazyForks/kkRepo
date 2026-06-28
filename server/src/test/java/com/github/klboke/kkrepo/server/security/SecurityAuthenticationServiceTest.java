@@ -255,6 +255,144 @@ class SecurityAuthenticationServiceTest {
   }
 
   @Test
+  void cargoAuthenticationAcceptsRawAuthorizationTokenWithoutChangingNormalAuth() {
+    FakeSecurityDao dao = new FakeSecurityDao();
+    dao.user(user(1L, "Local", "alice", NEXUS_SHIRO1_ADMIN123));
+    dao.roles(1L, "cargo-publisher");
+    dao.apiKey(new ApiKeyRecord(
+        11L,
+        "CargoToken",
+        "Local",
+        "alice",
+        "Migrated Cargo token",
+        "ACTIVE",
+        SecurityHashing.sha256("cargo-secret"),
+        "CargoToken.raw",
+        Map.of("source", "nexus-postgres", "values", List.of()),
+        "{migrated-nexus-cargo-raw-sha256}",
+        null,
+        null,
+        null,
+        null));
+    SecurityAuthenticationService service = service(dao);
+
+    Optional<AuthenticatedSubject> authenticated = service.authenticateCargo(request(Map.of(
+        "Authorization", "cargo-secret")));
+    Optional<AuthenticatedSubject> normalAuthenticated = service.authenticate(request(Map.of(
+        "Authorization", "cargo-secret")));
+
+    assertTrue(authenticated.isPresent());
+    assertEquals("alice", authenticated.get().userId());
+    assertEquals("api-key", authenticated.get().realmId());
+    assertTrue(authenticated.get().permissionSubject().groupIds().contains("cargo-publisher"));
+    assertTrue(normalAuthenticated.isEmpty());
+    assertEquals(11L, dao.lastUsedApiKeyId);
+  }
+
+  @Test
+  void cargoAuthenticationPrefersCargoDomainWhenBareTokenCollides() {
+    FakeSecurityDao dao = new FakeSecurityDao();
+    dao.user(user(1L, "Local", "npm-user", NEXUS_SHIRO1_ADMIN123));
+    dao.user(user(2L, "Local", "cargo-user", NEXUS_SHIRO1_ADMIN123));
+    dao.roles(1L, "npm-publisher");
+    dao.roles(2L, "cargo-publisher");
+    String hash = SecurityHashing.sha256("shared-secret");
+    dao.apiKey(new ApiKeyRecord(
+        21L,
+        "NpmToken",
+        "Local",
+        "npm-user",
+        "NPM token",
+        "ACTIVE",
+        hash,
+        "NpmToken.raw",
+        Map.of(),
+        "{}",
+        null,
+        null,
+        null,
+        null));
+    dao.apiKey(new ApiKeyRecord(
+        22L,
+        "CargoToken",
+        "Local",
+        "cargo-user",
+        "Cargo token",
+        "ACTIVE",
+        hash,
+        "CargoToken.raw",
+        Map.of(),
+        "{}",
+        null,
+        null,
+        null,
+        null));
+    SecurityAuthenticationService service = service(dao);
+
+    Optional<AuthenticatedSubject> cargoAuthenticated = service.authenticateCargo(request(Map.of(
+        "Authorization", "shared-secret")));
+    Optional<AuthenticatedSubject> normalAuthenticated = service.authenticate(request(Map.of(
+        "Authorization", "Bearer shared-secret")));
+
+    assertTrue(cargoAuthenticated.isPresent());
+    assertEquals("cargo-user", cargoAuthenticated.get().userId());
+    assertTrue(normalAuthenticated.isPresent());
+    assertEquals("npm-user", normalAuthenticated.get().userId());
+  }
+
+  @Test
+  void cargoAuthenticationAcceptsCompleteBasicAuthorizationHeaderAsToken() {
+    String cargoHeaderToken = "Basic " + Base64.getEncoder()
+        .encodeToString("nexus-user-token".getBytes(StandardCharsets.UTF_8));
+    FakeSecurityDao dao = new FakeSecurityDao();
+    dao.user(user(1L, "Local", "alice", NEXUS_SHIRO1_ADMIN123));
+    dao.roles(1L, "cargo-publisher");
+    dao.apiKey(new ApiKeyRecord(
+        12L,
+        "CargoToken",
+        "Local",
+        "alice",
+        "Migrated Cargo Basic user token",
+        "ACTIVE",
+        SecurityHashing.sha256(cargoHeaderToken),
+        "Basic token",
+        Map.of("source", "nexus-3.77-user-token", "values", List.of()),
+        "{migrated-nexus-cargo-basic-sha256}",
+        null,
+        null,
+        null,
+        null));
+    SecurityAuthenticationService service = service(dao);
+
+    Optional<AuthenticatedSubject> cargoAuthenticated = service.authenticateCargo(request(Map.of(
+        "Authorization", cargoHeaderToken)));
+    Optional<AuthenticatedSubject> normalAuthenticated = service.authenticate(request(Map.of(
+        "Authorization", cargoHeaderToken)));
+
+    assertTrue(cargoAuthenticated.isPresent());
+    assertEquals("alice", cargoAuthenticated.get().userId());
+    assertEquals("api-key", cargoAuthenticated.get().realmId());
+    assertTrue(cargoAuthenticated.get().permissionSubject().groupIds().contains("cargo-publisher"));
+    assertFalse(normalAuthenticated.isPresent());
+  }
+
+  @Test
+  void cargoAuthenticationFallsBackToNormalBasicCredentials() {
+    FakeSecurityDao dao = new FakeSecurityDao();
+    dao.realm(new SecurityRealmRecord(1L, "local", "LOCAL", "Local", true, 0, Map.of("source", "Local")));
+    dao.user(user(1L, "Local", "admin", NEXUS_SHIRO1_ADMIN123));
+    dao.roles(1L, "nx-admin");
+    SecurityAuthenticationService service = service(dao);
+
+    Optional<AuthenticatedSubject> authenticated = service.authenticateCargo(request(Map.of(
+        "Authorization", basic("admin", "admin123"))));
+
+    assertTrue(authenticated.isPresent());
+    assertEquals("admin", authenticated.get().userId());
+    assertEquals("local", authenticated.get().realmId());
+  }
+
+  @Test
   void staleApiKeyOwnerDeletesOwnerApiKeys() {
     FakeSecurityDao dao = new FakeSecurityDao();
     dao.apiKey(new ApiKeyRecord(

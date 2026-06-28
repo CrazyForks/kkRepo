@@ -1,5 +1,6 @@
 package com.github.klboke.kkrepo.server.upload;
 
+import com.github.klboke.kkrepo.server.cargo.CargoExceptions;
 import com.github.klboke.kkrepo.server.maven.MavenExceptions;
 import com.github.klboke.kkrepo.server.npm.NpmExceptions;
 import com.github.klboke.kkrepo.server.pypi.PypiExceptions;
@@ -66,6 +67,21 @@ public class ComponentUploadErrorAdvice {
 
   @ExceptionHandler(PypiExceptions.MethodNotAllowed.class)
   public ResponseEntity<Map<String, String>> pypiMethod(PypiExceptions.MethodNotAllowed e) {
+    return body(HttpStatus.METHOD_NOT_ALLOWED, e.getMessage());
+  }
+
+  @ExceptionHandler(CargoExceptions.CargoNotFoundException.class)
+  public ResponseEntity<Map<String, String>> cargoNotFound(CargoExceptions.CargoNotFoundException e) {
+    return body(HttpStatus.NOT_FOUND, e.getMessage());
+  }
+
+  @ExceptionHandler({CargoExceptions.BadRequestException.class, CargoExceptions.WritePolicyDenied.class})
+  public ResponseEntity<Map<String, String>> cargoBadRequest(RuntimeException e) {
+    return body(HttpStatus.BAD_REQUEST, e.getMessage());
+  }
+
+  @ExceptionHandler(CargoExceptions.MethodNotAllowed.class)
+  public ResponseEntity<Map<String, String>> cargoMethod(CargoExceptions.MethodNotAllowed e) {
     return body(HttpStatus.METHOD_NOT_ALLOWED, e.getMessage());
   }
 

@@ -1,6 +1,8 @@
 package com.github.klboke.kkrepo.server.maven;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -9,10 +11,12 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -122,6 +126,83 @@ class HttpRemoteFetcherTest {
   }
 
   @Test
+  void remoteAuthorizationIsPinnedToRepositoryRemoteOrigin() {
+    RepositoryRuntime runtime = runtime("robot", "secret", null);
+
+    HttpRemoteFetcher.Request httpSameHost = HttpRemoteFetcher.Request
+        .get("http://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime);
+    HttpRemoteFetcher.Request differentPort = HttpRemoteFetcher.Request
+        .get("https://repo.example.com:8443/maven2/com/example/app.jar")
+        .withRepository(runtime);
+    HttpRemoteFetcher.Request sameOrigin = HttpRemoteFetcher.Request
+        .get("https://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime);
+
+    assertNull(httpSameHost.authorizationHeader());
+    assertNull(differentPort.authorizationHeader());
+    assertNotNull(sameOrigin.authorizationHeader());
+  }
+
+  @Test
+  void redirectAuthorizationRequiresSameOrigin() {
+    HttpRemoteFetcher.Request request = HttpRemoteFetcher.Request
+        .get("https://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime("robot", "secret", null));
+    URI current = URI.create("https://repo.example.com/maven2/com/example/app.jar");
+
+    assertEquals(
+        request.authorizationHeader(),
+        request.authorizationHeaderForRedirect(current, URI.create("https://repo.example.com/maven2/redirect.jar")));
+    assertThrows(
+        SecurityValidationException.class,
+        () -> request.authorizationHeaderForRedirect(current, URI.create("https://repo.example.com:8443/maven2/redirect.jar")));
+    assertThrows(
+        SecurityValidationException.class,
+        () -> request.authorizationHeaderForRedirect(current, URI.create("http://repo.example.com/maven2/redirect.jar")));
+  }
+
+  @Test
+  void requestWithRepositoryAddsBasicRemoteAuthorizationWhenConfigured() {
+    RepositoryRuntime runtime = runtime("robot", "secret", null);
+
+    HttpRemoteFetcher.Request request = HttpRemoteFetcher.Request
+        .get("https://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime);
+
+    String encoded = Base64.getEncoder().encodeToString("robot:secret".getBytes(StandardCharsets.UTF_8));
+    assertEquals("Basic " + encoded, request.authorizationHeader());
+  }
+
+  @Test
+  void requestWithRepositoryPrefersBearerRemoteAuthorizationWhenConfigured() {
+    RepositoryRuntime runtime = runtime("robot", "secret", "upstream-token");
+
+    HttpRemoteFetcher.Request request = HttpRemoteFetcher.Request
+        .get("https://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime);
+
+    assertEquals("Bearer upstream-token", request.authorizationHeader());
+  }
+
+  @Test
+  void requestWithRepositoryOnlyAddsAuthorizationForPinnedRemoteHost() {
+    RepositoryRuntime runtime = runtime("robot", "secret", null);
+
+    HttpRemoteFetcher.Request differentHost = HttpRemoteFetcher.Request
+        .get("https://static.example.com/crates/demo/1.0.0/download")
+        .withRepository(runtime);
+    HttpRemoteFetcher.Request suppressed = HttpRemoteFetcher.Request
+        .get("https://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime, false);
+
+    assertNull(differentHost.trustedHost());
+    assertNull(differentHost.authorizationHeader());
+    assertEquals("repo.example.com", suppressed.trustedHost());
+    assertNull(suppressed.authorizationHeader());
+  }
+
+  @Test
   void bodyReadFailureRetriesFreshGet() throws Exception {
     SequencedFetcher fetcher = new SequencedFetcher(
         result("first"),
@@ -178,6 +259,34 @@ class HttpRemoteFetcherTest {
         200,
         Map.of(),
         new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+  }
+
+  private static RepositoryRuntime runtime(String username, String password, String bearerToken) {
+    return new RepositoryRuntime(
+        1,
+        "maven-proxy",
+        RepositoryFormat.MAVEN2,
+        RepositoryType.PROXY,
+        "maven2-proxy",
+        true,
+        1L,
+        null,
+        "RELEASE",
+        "STRICT",
+        true,
+        "https://repo.example.com/maven2",
+        1440,
+        1440,
+        null,
+        username,
+        password,
+        bearerToken,
+        null,
+        null,
+        null,
+        null,
+        null,
+        List.of());
   }
 
   private static class SequencedFetcher extends HttpRemoteFetcher {

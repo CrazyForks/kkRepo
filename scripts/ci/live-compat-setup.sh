@@ -70,6 +70,57 @@ initialize_nexus_admin() {
   curl -m 10 -fsS -u "$NEXUS_AUTH" "$NEXUS_URL/service/rest/v1/status" >/dev/null
 }
 
+accept_nexus_eula_if_required() {
+  local eula_file accepted_file http_status
+  eula_file="$(mktemp)"
+  accepted_file="$(mktemp)"
+
+  http_status="$(curl -m 20 -sS \
+    -u "$NEXUS_AUTH" \
+    -H "Accept: application/json" \
+    -o "$eula_file" \
+    -w "%{http_code}" \
+    "$NEXUS_URL/service/rest/v1/system/eula" || true)"
+
+  if [[ "$http_status" == "404" ]]; then
+    echo "[compat] Nexus EULA endpoint is not available; skipping"
+    rm -f "$eula_file" "$accepted_file"
+    return 0
+  fi
+  if [[ "$http_status" != "200" ]]; then
+    echo "[compat] Nexus EULA lookup failed with HTTP $http_status" >&2
+    cat "$eula_file" >&2 || true
+    rm -f "$eula_file" "$accepted_file"
+    return 1
+  fi
+  if grep -q '"accepted"[[:space:]]*:[[:space:]]*true' "$eula_file"; then
+    echo "[compat] Nexus EULA already accepted"
+    rm -f "$eula_file" "$accepted_file"
+    return 0
+  fi
+
+  python3 - "$eula_file" "$accepted_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as source:
+    payload = json.load(source)
+payload["accepted"] = True
+with open(sys.argv[2], "w", encoding="utf-8") as target:
+    json.dump(payload, target, ensure_ascii=False, separators=(",", ":"))
+PY
+
+  echo "[compat] accepting Nexus EULA"
+  curl -m 20 -fsS \
+    -u "$NEXUS_AUTH" \
+    -X POST \
+    -H "Content-Type: application/json; charset=UTF-8" \
+    --data-binary "@$accepted_file" \
+    "$NEXUS_URL/service/rest/v1/system/eula" >/dev/null
+
+  rm -f "$eula_file" "$accepted_file"
+}
+
 nexus_repo_exists() {
   local name="$1"
   local repositories
@@ -299,6 +350,7 @@ wait_for_http "Nexus status endpoint" "$NEXUS_URL/service/rest/v1/status"
 wait_for_http "kkrepo management health" "$KKREPO_MANAGEMENT_URL/actuator/health"
 
 initialize_nexus_admin
+accept_nexus_eula_if_required
 ensure_nexus_repositories
 initialize_kkrepo_admin
 ensure_kkrepo_blob_store

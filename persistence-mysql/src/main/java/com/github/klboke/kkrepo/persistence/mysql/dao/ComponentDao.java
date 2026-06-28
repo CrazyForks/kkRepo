@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.ConnectionCallback;
@@ -78,6 +79,13 @@ public class ComponentDao {
         SELECT * FROM component
         WHERE repository_id = ? AND coordinate_hash = ?
         """, rowMapper, repositoryId, coordinateHash).stream().findFirst();
+  }
+
+  public Optional<ComponentRecord> findById(long componentId) {
+    return jdbcTemplate.query("""
+        SELECT * FROM component
+        WHERE id = ?
+        """, rowMapper, componentId).stream().findFirst();
   }
 
   public long upsertReturningId(ComponentRecord record) {
@@ -178,6 +186,14 @@ public class ComponentDao {
   }
 
   public List<ComponentSearchRow> searchByRepositoryIds(List<Long> repositoryIds, String keyword, int limit) {
+    return searchByRepositoryIds(repositoryIds, RepositoryFormat.NPM, keyword, limit);
+  }
+
+  public List<ComponentSearchRow> searchByRepositoryIds(
+      List<Long> repositoryIds,
+      RepositoryFormat format,
+      String keyword,
+      int limit) {
     if (repositoryIds == null || repositoryIds.isEmpty()) {
       return List.of();
     }
@@ -185,7 +201,7 @@ public class ComponentDao {
     int safeLimit = Math.max(1, Math.min(limit, 300));
     String placeholders = String.join(",", Collections.nCopies(repositoryIds.size(), "?"));
     List<Object> args = new ArrayList<>(repositoryIds);
-    args.add(EnumColumns.write(RepositoryFormat.NPM));
+    args.add(EnumColumns.write(format));
     StringBuilder sql = new StringBuilder("""
         SELECT c.id, c.repository_id, r.name AS repository_name, c.format, c.namespace,
                c.name, c.version, c.kind, c.last_updated_at
@@ -215,6 +231,46 @@ public class ComponentDao {
     return jdbcTemplate.query(sql.toString(), searchRowMapper, args.toArray());
   }
 
+  public List<ComponentRecord> searchComponentsByRepositoryIds(
+      List<Long> repositoryIds,
+      RepositoryFormat format,
+      String keyword,
+      int limit) {
+    if (repositoryIds == null || repositoryIds.isEmpty()) {
+      return List.of();
+    }
+    String normalized = keyword == null ? "" : keyword.trim();
+    int safeLimit = Math.max(1, Math.min(limit, 300));
+    String placeholders = String.join(",", Collections.nCopies(repositoryIds.size(), "?"));
+    List<Object> args = new ArrayList<>(repositoryIds);
+    args.add(EnumColumns.write(format));
+    StringBuilder sql = new StringBuilder("""
+        SELECT c.*
+        FROM component c
+        WHERE c.repository_id IN (
+        """);
+    sql.append(placeholders).append(") AND c.format = ?");
+    if (!normalized.isEmpty()) {
+      String booleanQuery = fulltextBooleanQuery(normalized);
+      if (booleanQuery.isBlank()) return List.of();
+      int fromIndex = sql.indexOf("FROM component c");
+      sql.replace(fromIndex, fromIndex + "FROM component c".length(), """
+          FROM component_search cs
+          JOIN component c ON c.id = cs.component_id""");
+      sql.append("""
+          AND MATCH(cs.namespace, cs.name, cs.version, cs.keywords)
+              AGAINST (? IN BOOLEAN MODE)
+          """);
+      args.add(booleanQuery);
+    }
+    sql.append("""
+        ORDER BY c.last_updated_at DESC, c.namespace, c.name, c.version
+        LIMIT ?
+        """);
+    args.add(safeLimit);
+    return jdbcTemplate.query(sql.toString(), rowMapper, args.toArray());
+  }
+
   public int deleteIfNoAssets(long componentId) {
     return jdbcTemplate.update("""
         DELETE FROM component
@@ -229,6 +285,16 @@ public class ComponentDao {
     jdbcTemplate.update("""
         UPDATE component_search SET refreshed_at = NOW(3) WHERE component_id = ?
         """, componentId);
+    return updated;
+  }
+
+  public int updateAttributes(long componentId, Map<String, Object> attributes, java.time.Instant when) {
+    int updated = jdbcTemplate.update("""
+        UPDATE component
+        SET attributes_json = ?, last_updated_at = ?
+        WHERE id = ?
+        """, jsonColumns.write(attributes), nullableTimestamp(when), componentId);
+    findById(componentId).ifPresent(record -> upsertSearchIndex(componentId, record));
     return updated;
   }
 
