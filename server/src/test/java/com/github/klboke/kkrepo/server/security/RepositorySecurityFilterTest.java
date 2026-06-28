@@ -41,7 +41,7 @@ class RepositorySecurityFilterTest {
   void readOnlyRequestsUseAnonymousSubjectPermissionsInsteadOfBypassingSecurity() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("maven-public")),
@@ -65,7 +65,7 @@ class RepositorySecurityFilterTest {
   void readOnlyAnonymousRequestsAreForbiddenWhenAnonymousRoleLacksPermission() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.deny("missing permission"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("maven-public")),
@@ -117,7 +117,7 @@ class RepositorySecurityFilterTest {
   private static void assertCargoReadUsesAnonymousPermissions(String uri) throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(cargoRepository("cargo-hosted", true)),
@@ -137,7 +137,7 @@ class RepositorySecurityFilterTest {
 
   private static void assertCargoReadRequiresAuthenticationWithoutAnonymousFallback(String uri) throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         new RecordingDecisionService(AccessDecision.allow()),
         new FakeRepositoryDao(cargoRepository("cargo-hosted", false)),
@@ -155,9 +155,79 @@ class RepositorySecurityFilterTest {
   }
 
   @Test
+  void cargoChallengeUsesTrustedForwardedHeaders() throws Exception {
+    StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
+    RepositorySecurityFilter filter = filter(
+        authentication,
+        new RecordingDecisionService(AccessDecision.allow()),
+        new FakeRepositoryDao(cargoRepository("cargo-hosted", false)),
+        new ForwardedHeaderPolicy("10.0.0.1"),
+        false);
+    ResponseState response = new ResponseState();
+    ChainState chain = new ChainState();
+
+    filter.doFilter(
+        request(
+            "GET",
+            "/repository/cargo-hosted/config.json",
+            Map.of(),
+            Map.of(
+                "X-Forwarded-Proto", "https",
+                "X-Forwarded-Host", "repo.example.com",
+                "X-Forwarded-Port", "443"),
+            "10.0.0.1",
+            "http",
+            "internal.local",
+            8081),
+        response.proxy(),
+        chain);
+
+    assertEquals(0, chain.calls);
+    assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.status);
+    assertEquals(
+        "Cargo login_url=\"https://repo.example.com/repository/cargo-hosted/me\"",
+        response.headers.get("WWW-Authenticate"));
+  }
+
+  @Test
+  void cargoChallengeIgnoresUntrustedForwardedHeaders() throws Exception {
+    StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
+    RepositorySecurityFilter filter = filter(
+        authentication,
+        new RecordingDecisionService(AccessDecision.allow()),
+        new FakeRepositoryDao(cargoRepository("cargo-hosted", false)),
+        new ForwardedHeaderPolicy("10.0.0.1"),
+        false);
+    ResponseState response = new ResponseState();
+    ChainState chain = new ChainState();
+
+    filter.doFilter(
+        request(
+            "GET",
+            "/repository/cargo-hosted/config.json",
+            Map.of(),
+            Map.of(
+                "X-Forwarded-Proto", "https",
+                "X-Forwarded-Host", "repo.example.com",
+                "X-Forwarded-Port", "443"),
+            "192.0.2.10",
+            "http",
+            "internal.local",
+            8081),
+        response.proxy(),
+        chain);
+
+    assertEquals(0, chain.calls);
+    assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.status);
+    assertEquals(
+        "Cargo login_url=\"http://internal.local:8081/repository/cargo-hosted/me\"",
+        response.headers.get("WWW-Authenticate"));
+  }
+
+  @Test
   void cargoDownloadsUseAnonymousReadFallbackLikeOtherRepositories() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         new RecordingDecisionService(AccessDecision.allow()),
         new FakeRepositoryDao(cargoRepository("cargo-hosted", true)),
@@ -178,7 +248,7 @@ class RepositorySecurityFilterTest {
   @Test
   void nexusCompatibleCargoDownloadsUseAnonymousReadFallbackLikeOtherRepositories() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         new RecordingDecisionService(AccessDecision.allow()),
         new FakeRepositoryDao(cargoRepository("cargo-hosted", true)),
@@ -199,7 +269,7 @@ class RepositorySecurityFilterTest {
   @Test
   void writeRequestsDoNotUseAnonymousFallback() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         new RecordingDecisionService(AccessDecision.allow()),
         new FakeRepositoryDao(repository("maven-public")),
@@ -222,7 +292,7 @@ class RepositorySecurityFilterTest {
   void npmTokenLoginRouteBypassesRepositoryContentPermissionFilter() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.deny("should not be checked"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("npm-hosted", RepositoryFormat.NPM)),
@@ -244,7 +314,7 @@ class RepositorySecurityFilterTest {
   void browseRestRouteRequiresBrowsePermission() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("maven-public")),
@@ -323,7 +393,7 @@ class RepositorySecurityFilterTest {
   private void assertNpmAuditRouteUsesReadPermission(String path) throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(subject("anonymous"));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("npm-example", RepositoryFormat.NPM)),
@@ -346,7 +416,7 @@ class RepositorySecurityFilterTest {
   void restComponentUploadRequiresRepositoryEditPermission() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("maven-releases")),
@@ -368,7 +438,7 @@ class RepositorySecurityFilterTest {
   void nonPostComponentsEndpointIsNotTreatedAsUploadPermission() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.deny("should not be checked"));
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("maven-releases")),
@@ -390,7 +460,7 @@ class RepositorySecurityFilterTest {
   void internalUiComponentUploadRequiresRepositoryEditPermission() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository("maven-releases")),
@@ -417,6 +487,33 @@ class RepositorySecurityFilterTest {
         new PermissionSubject("Local", userId, Set.of("nx-anonymous"), null));
   }
 
+  private static RepositorySecurityFilter filter(
+      SecurityAuthenticationService authenticationService,
+      com.github.klboke.kkrepo.auth.AccessDecisionService accessDecisionService,
+      RepositoryDao repositoryDao,
+      boolean anonymousReadEnabled) {
+    return filter(
+        authenticationService,
+        accessDecisionService,
+        repositoryDao,
+        new ForwardedHeaderPolicy(""),
+        anonymousReadEnabled);
+  }
+
+  private static RepositorySecurityFilter filter(
+      SecurityAuthenticationService authenticationService,
+      com.github.klboke.kkrepo.auth.AccessDecisionService accessDecisionService,
+      RepositoryDao repositoryDao,
+      ForwardedHeaderPolicy forwardedHeaderPolicy,
+      boolean anonymousReadEnabled) {
+    return new RepositorySecurityFilter(
+        authenticationService,
+        accessDecisionService,
+        repositoryDao,
+        forwardedHeaderPolicy,
+        anonymousReadEnabled);
+  }
+
   private static void assertRepositoryContentAction(String method, PermissionAction action) throws Exception {
     assertRepositoryPathAction(
         repository("maven-releases"),
@@ -432,7 +529,7 @@ class RepositorySecurityFilterTest {
       PermissionAction action) throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(repository),
@@ -449,7 +546,7 @@ class RepositorySecurityFilterTest {
   private static void assertCargoRouteAction(String method, String uri, PermissionAction action) throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
     RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow());
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(cargoRepository("cargo-hosted", false)),
@@ -474,7 +571,7 @@ class RepositorySecurityFilterTest {
             : AccessDecision.deny("missing add");
       }
     };
-    RepositorySecurityFilter filter = new RepositorySecurityFilter(
+    RepositorySecurityFilter filter = filter(
         authentication,
         decisions,
         new FakeRepositoryDao(cargoRepository("cargo-hosted", false)),
@@ -535,6 +632,18 @@ class RepositorySecurityFilterTest {
   }
 
   private static HttpServletRequest request(String method, String uri, Map<String, String> parameters) {
+    return request(method, uri, parameters, Map.of(), null, null, null, 0);
+  }
+
+  private static HttpServletRequest request(
+      String method,
+      String uri,
+      Map<String, String> parameters,
+      Map<String, String> headers,
+      String remoteAddr,
+      String scheme,
+      String serverName,
+      int serverPort) {
     Map<String, Object> attributes = new LinkedHashMap<>();
     return (HttpServletRequest) Proxy.newProxyInstance(
         RepositorySecurityFilterTest.class.getClassLoader(),
@@ -544,6 +653,11 @@ class RepositorySecurityFilterTest {
           case "getRequestURI" -> uri;
           case "getContextPath" -> "";
           case "getParameter" -> parameters.get(String.valueOf(args[0]));
+          case "getHeader" -> headers.get(String.valueOf(args[0]));
+          case "getRemoteAddr" -> remoteAddr;
+          case "getScheme" -> scheme;
+          case "getServerName" -> serverName;
+          case "getServerPort" -> serverPort;
           case "getDispatcherType" -> DispatcherType.REQUEST;
           case "getAttribute" -> attributes.get(String.valueOf(args[0]));
           case "setAttribute" -> {

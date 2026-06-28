@@ -869,25 +869,7 @@ public class RepositoryContentController {
   }
 
   private String serverBaseUrl(HttpServletRequest request) {
-    boolean trustedForwarded = forwardedHeaderPolicy.trusted(request);
-    String scheme = trustedForwarded ? firstHeader(request, "X-Forwarded-Proto", request.getScheme()) : request.getScheme();
-    String host = trustedForwarded ? firstHeader(request, "X-Forwarded-Host", request.getServerName()) : request.getServerName();
-    String portHeader = trustedForwarded ? request.getHeader("X-Forwarded-Port") : null;
-    String authority = host;
-    if (portHeader == null && !host.contains(":")) {
-      int port = request.getServerPort();
-      boolean standard = ("http".equalsIgnoreCase(scheme) && port == 80)
-          || ("https".equalsIgnoreCase(scheme) && port == 443);
-      if (!standard) authority = host + ":" + port;
-    }
-    return scheme + "://" + authority;
-  }
-
-  private static String firstHeader(HttpServletRequest request, String name, String fallback) {
-    String value = request.getHeader(name);
-    if (value == null || value.isBlank()) return fallback;
-    int comma = value.indexOf(',');
-    return comma < 0 ? value.trim() : value.substring(0, comma).trim();
+    return forwardedHeaderPolicy.serverBaseUrl(request);
   }
 
   private static int parsePositiveInt(String raw, int fallback) {

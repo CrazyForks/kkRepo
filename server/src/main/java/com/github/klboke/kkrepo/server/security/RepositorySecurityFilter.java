@@ -33,16 +33,19 @@ public class RepositorySecurityFilter extends OncePerRequestFilter {
   private final SecurityAuthenticationService authenticationService;
   private final AccessDecisionService accessDecisionService;
   private final RepositoryDao repositoryDao;
+  private final ForwardedHeaderPolicy forwardedHeaderPolicy;
   private final boolean anonymousReadEnabled;
 
   public RepositorySecurityFilter(
       SecurityAuthenticationService authenticationService,
       AccessDecisionService accessDecisionService,
       RepositoryDao repositoryDao,
+      ForwardedHeaderPolicy forwardedHeaderPolicy,
       @Value("${kkrepo.security.anonymous-read-enabled:false}") boolean anonymousReadEnabled) {
     this.authenticationService = authenticationService;
     this.accessDecisionService = accessDecisionService;
     this.repositoryDao = repositoryDao;
+    this.forwardedHeaderPolicy = forwardedHeaderPolicy;
     this.anonymousReadEnabled = anonymousReadEnabled;
   }
 
@@ -249,15 +252,8 @@ public class RepositorySecurityFilter extends OncePerRequestFilter {
   private String cargoLoginUrl(HttpServletRequest request, String repository) {
     String contextPath = request.getContextPath();
     String path = (contextPath == null ? "" : contextPath) + "/repository/" + repository + "/me";
-    String scheme = request.getScheme();
-    String server = request.getServerName();
-    if (scheme == null || scheme.isBlank() || server == null || server.isBlank()) {
-      return path;
-    }
-    int port = request.getServerPort();
-    boolean defaultPort = ("http".equalsIgnoreCase(scheme) && port == 80)
-        || ("https".equalsIgnoreCase(scheme) && port == 443);
-    return scheme + "://" + server + (port <= 0 || defaultPort ? "" : ":" + port) + path;
+    String baseUrl = forwardedHeaderPolicy.serverBaseUrl(request);
+    return baseUrl.isBlank() ? path : baseUrl + path;
   }
 
   private String quoteHeaderValue(String value) {
