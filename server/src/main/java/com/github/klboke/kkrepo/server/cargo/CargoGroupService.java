@@ -49,6 +49,7 @@ public class CargoGroupService {
   MavenResponse index(RepositoryRuntime runtime, String crateName, boolean headOnly) {
     Map<String, String> byVersion = new LinkedHashMap<>();
     Instant lastModified = null;
+    CargoExceptions.BadUpstreamException lastUpstream = null;
     for (RepositoryRuntime member : runtime.members()) {
       if (!eligible(member)) {
         continue;
@@ -73,11 +74,16 @@ public class CargoGroupService {
         }
       } catch (CargoExceptions.CargoNotFoundException ignored) {
         // Continue with the next member.
+      } catch (CargoExceptions.BadUpstreamException e) {
+        lastUpstream = e;
       } catch (IOException e) {
-        throw new CargoExceptions.BadUpstreamException("Failed reading Cargo group member index", e);
+        lastUpstream = new CargoExceptions.BadUpstreamException("Failed reading Cargo group member index", e);
       }
     }
     if (byVersion.isEmpty()) {
+      if (lastUpstream != null) {
+        throw lastUpstream;
+      }
       throw new CargoExceptions.CargoNotFoundException(crateName);
     }
     return CargoResponses.text(String.join("\n", byVersion.values()) + "\n", null, lastModified, headOnly);

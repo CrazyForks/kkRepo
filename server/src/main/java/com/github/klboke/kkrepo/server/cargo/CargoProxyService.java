@@ -113,11 +113,7 @@ public class CargoProxyService {
 
   MavenResponse download(RepositoryRuntime runtime, String crateName, String version, boolean headOnly) {
     ensureProxy(runtime);
-    Map<String, Object> entry = findRemoteEntry(runtime, crateName, version)
-        .orElseThrow(() -> new CargoExceptions.CargoNotFoundException(crateName + " " + version));
-    String effectiveName = text(entry.get("name"));
-    String effectiveVersion = text(entry.get("vers"));
-    String path = CargoAssetWriter.cratePath(effectiveName, effectiveVersion);
+    String path = CargoAssetWriter.cratePath(crateName, version);
     Optional<CachedAssetMetadata> cached = usableCached(runtime, path, lookupCached(runtime, path));
     Instant now = Instant.now();
     if (cached.isPresent() && isFresh(cached.get(), runtime.contentMaxAgeMinutesOrDefault(), now)) {
@@ -132,9 +128,21 @@ public class CargoProxyService {
       }
       throw new CargoExceptions.BadUpstreamException("Upstream temporarily blocked: " + runtime.proxyRemoteUrl());
     }
+    Map<String, Object> entry = findRemoteEntry(runtime, crateName, version)
+        .orElseThrow(() -> new CargoExceptions.CargoNotFoundException(crateName + " " + version));
+    String effectiveName = text(entry.get("name"));
+    String effectiveVersion = text(entry.get("vers"));
+    String effectivePath = CargoAssetWriter.cratePath(effectiveName, effectiveVersion);
+    if (!effectivePath.equals(path)) {
+      path = effectivePath;
+      cached = usableCached(runtime, path, lookupCached(runtime, path));
+      if (cached.isPresent() && isFresh(cached.get(), runtime.contentMaxAgeMinutesOrDefault(), now)) {
+        return reader.serveSnapshot(cached.get(), headOnly, path);
+      }
+    }
     CargoRemoteConfig config = remoteConfig(runtime, now);
     String url = downloadUrl(config.dl(), effectiveName, effectiveVersion, text(entry.get("cksum")));
-    return fetchAndCacheCrate(runtime, path, url, entry, cached, headOnly, now);
+    return fetchAndCacheCrate(runtime, path, url, entry, cached, config.authRequired(), headOnly, now);
   }
 
   Optional<Map<String, Object>> findRemoteEntry(RepositoryRuntime runtime, String crateName, String version) {
@@ -306,12 +314,13 @@ public class CargoProxyService {
       String url,
       Map<String, Object> indexEntry,
       Optional<CachedAssetMetadata> cached,
+      boolean upstreamAuthRequired,
       boolean headOnly,
       Instant now) {
     HttpRemoteFetcher.Request req = new HttpRemoteFetcher.Request(
         url, remoteEtag(cached), remoteLastModified(cached), null, false)
         .withTimeoutProfile(HttpRemoteFetcher.TimeoutProfile.CONTENT)
-        .withRepository(runtime);
+        .withRepository(runtime, upstreamAuthRequired);
     try {
       return fetcher.fetchWithBodyRetry(req, path, result -> {
         int status = result.status();

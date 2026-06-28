@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.klboke.kkrepo.persistence.mysql.model.ComponentRecord;
 import com.github.klboke.kkrepo.protocol.cargo.CargoCrateName;
+import com.github.klboke.kkrepo.protocol.cargo.CargoVersions;
 import com.github.klboke.kkrepo.server.maven.MavenResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -111,9 +112,25 @@ final class CargoSearchResults {
       if (name == null) {
         continue;
       }
-      byName.putIfAbsent(nameKey(name), crate);
+      byName.merge(nameKey(name), crate, CargoSearchResults::newerCrate);
     }
     return new ArrayList<>(byName.values());
+  }
+
+  private static Map<String, Object> newerCrate(Map<String, Object> left, Map<String, Object> right) {
+    String leftVersion = firstText(left.get("max_version"), null);
+    String rightVersion = firstText(right.get("max_version"), null);
+    if (leftVersion == null) {
+      return right;
+    }
+    if (rightVersion == null) {
+      return left;
+    }
+    try {
+      return CargoVersions.compare(rightVersion, leftVersion) > 0 ? right : left;
+    } catch (IllegalArgumentException ignored) {
+      return rightVersion.compareTo(leftVersion) > 0 ? right : left;
+    }
   }
 
   private static void putIfPresent(Map<String, Object> target, String key, Object value) {

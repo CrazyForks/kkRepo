@@ -137,6 +137,7 @@ public class CargoHostedService {
 
   public MavenResponse yank(RepositoryRuntime runtime, String crateName, String version, boolean yanked) {
     ensureHosted(runtime);
+    enforcePublishPolicy(runtime);
     ComponentRecord component = component(runtime, crateName, version)
         .orElseThrow(() -> new CargoExceptions.CargoNotFoundException(crateName + " " + version));
     Map<String, Object> attrs = new LinkedHashMap<>(component.attributes() == null ? Map.of() : component.attributes());

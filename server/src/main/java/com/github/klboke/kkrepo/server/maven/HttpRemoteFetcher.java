@@ -329,6 +329,11 @@ public class HttpRemoteFetcher {
     }
 
     public Request withRepository(RepositoryRuntime runtime) {
+      return withRepository(runtime, true);
+    }
+
+    public Request withRepository(RepositoryRuntime runtime, boolean includeAuthorization) {
+      String trusted = trustedRemoteHost(url, runtime);
       return new Request(
           url,
           etag,
@@ -338,8 +343,8 @@ public class HttpRemoteFetcher {
           headOnly,
           runtime == null ? null : runtime.name(),
           runtime == null || runtime.format() == null ? null : runtime.format().name(),
-          trustedRemoteHost(url, runtime),
-          remoteAuthorizationHeader(runtime));
+          trusted,
+          includeAuthorization && trusted != null ? remoteAuthorizationHeader(runtime) : null);
     }
 
     public String method() {

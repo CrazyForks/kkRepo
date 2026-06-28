@@ -63,7 +63,7 @@ class CargoGroupServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void groupSearchMergesMembersAndKeepsFirstDuplicateCrate() throws Exception {
+  void groupSearchMergesMembersAndKeepsHighestDuplicateCrateVersion() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
     StubCargoHostedService hosted = new StubCargoHostedService("", "", """
         {"crates":[{"name":"demo","max_version":"1.0.0","description":"hosted demo"}],"meta":{"total":1}}
@@ -81,9 +81,23 @@ class CargoGroupServiceTest {
     List<Map<String, Object>> crates = (List<Map<String, Object>>) body.get("crates");
     assertEquals(2, crates.size());
     assertEquals("demo", crates.get(0).get("name"));
-    assertEquals("1.0.0", crates.get(0).get("max_version"));
+    assertEquals("1.1.0", crates.get(0).get("max_version"));
     assertEquals("itoa", crates.get(1).get("name"));
     assertEquals(Map.of("total", 2), body.get("meta"));
+  }
+
+  @Test
+  void groupIndexContinuesWhenOneMemberHasUpstreamFailure() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    StubCargoHostedService hosted = new StubCargoHostedService("""
+        {"name":"demo","vers":"1.0.0","cksum":"hosted-checksum","yanked":false}
+        """, "hosted-crate");
+    CargoGroupService service = new CargoGroupService(hosted, new FailingCargoProxyService(), mapper);
+
+    MavenResponse index = service.index(runtime(new RepositoryRuntime[] {proxyRuntime(), hostedRuntime()}), "demo", false);
+
+    String body = new String(index.body().readAllBytes(), StandardCharsets.UTF_8);
+    assertEquals(true, body.contains("\"cksum\":\"hosted-checksum\""));
   }
 
   private static RepositoryRuntime runtime() {
@@ -214,6 +228,17 @@ class CargoGroupServiceTest {
     MavenResponse search(RepositoryRuntime runtime, CargoSearchQuery query, boolean headOnly) {
       byte[] bytes = searchBody.getBytes(StandardCharsets.UTF_8);
       return MavenResponse.ok(new ByteArrayInputStream(bytes), bytes.length, "application/json", null, null);
+    }
+  }
+
+  private static final class FailingCargoProxyService extends CargoProxyService {
+    private FailingCargoProxyService() {
+      super(null, null, null, null, null, null, null, null, null, new ObjectMapper());
+    }
+
+    @Override
+    MavenResponse index(RepositoryRuntime runtime, String crateName, boolean headOnly) {
+      throw new CargoExceptions.BadUpstreamException("proxy unavailable");
     }
   }
 }

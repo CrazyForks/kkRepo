@@ -1,6 +1,7 @@
 package com.github.klboke.kkrepo.server.cargo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -102,7 +103,20 @@ class CargoHostedServiceTest {
     assertEquals(Map.of("total", 2), body.get("meta"));
   }
 
+  @Test
+  void yankHonorsHostedWritePolicyDeny() {
+    CargoHostedService service = new CargoHostedService(null, mock(ComponentDao.class), null, null, null, null,
+        new ObjectMapper());
+
+    assertThrows(CargoExceptions.WritePolicyDenied.class,
+        () -> service.yank(runtime(false, "DENY"), "demo-crate", "1.2.3", true));
+  }
+
   private static RepositoryRuntime runtime(boolean requireAuthentication) {
+    return runtime(requireAuthentication, "ALLOW_ONCE");
+  }
+
+  private static RepositoryRuntime runtime(boolean requireAuthentication, String writePolicy) {
     return new RepositoryRuntime(
         1L,
         "cargo-hosted",
@@ -111,7 +125,7 @@ class CargoHostedServiceTest {
         "cargo-hosted",
         true,
         1L,
-        "ALLOW_ONCE",
+        writePolicy,
         null,
         null,
         true,

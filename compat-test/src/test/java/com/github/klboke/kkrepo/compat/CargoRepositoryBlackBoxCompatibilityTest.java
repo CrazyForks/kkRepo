@@ -570,6 +570,18 @@ class CargoRepositoryBlackBoxCompatibilityTest {
     assertEquals(referenceEntry.get("yanked"), candidateEntry.get("yanked"), label + " yanked");
     assertEquals(fixture.crateSha256(), text(referenceEntry.get("cksum")), label + " Nexus checksum");
     assertEquals(fixture.crateSha256(), text(candidateEntry.get("cksum")), label + " kkrepo checksum");
+    assertEquals(indexResolutionFields(referenceEntry), indexResolutionFields(candidateEntry),
+        label + " Cargo resolution fields");
+  }
+
+  private static Map<String, Object> indexResolutionFields(Map<String, Object> entry) {
+    Map<String, Object> fields = new LinkedHashMap<>();
+    for (String key : List.of("deps", "features", "features2", "v", "links", "rust_version")) {
+      if (entry.containsKey(key)) {
+        fields.put(key, entry.get(key));
+      }
+    }
+    return fields;
   }
 
   private static void assertSameRemoteIndexSemantics(

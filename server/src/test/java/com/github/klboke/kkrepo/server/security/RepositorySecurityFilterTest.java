@@ -273,9 +273,9 @@ class RepositorySecurityFilterTest {
   }
 
   @Test
-  void cargoPublishRouteAllowsAddOrEditPermission() throws Exception {
+  void cargoPublishRouteRequiresAddPermission() throws Exception {
     assertCargoRouteAction("PUT", "/repository/cargo-hosted/api/v1/crates/new", PermissionAction.ADD);
-    assertCargoPublishRouteFallsBackToEditWhenAddDenied();
+    assertCargoPublishRouteDoesNotFallBackToEditWhenAddDenied();
   }
 
   @Test
@@ -463,15 +463,15 @@ class RepositorySecurityFilterTest {
     assertEquals(action, decisions.permission.action());
   }
 
-  private static void assertCargoPublishRouteFallsBackToEditWhenAddDenied() throws Exception {
+  private static void assertCargoPublishRouteDoesNotFallBackToEditWhenAddDenied() throws Exception {
     StubAuthenticationService authentication = new StubAuthenticationService(Optional.of(subject("alice")));
-    RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.allow()) {
+    RecordingDecisionService decisions = new RecordingDecisionService(AccessDecision.deny("missing add")) {
       @Override
       public AccessDecision decide(PermissionSubject subject, RepositoryPermission permission) {
         super.decide(subject, permission);
-        return permission.action() == PermissionAction.ADD
-            ? AccessDecision.deny("missing add")
-            : AccessDecision.allow();
+        return permission.action() == PermissionAction.EDIT
+            ? AccessDecision.allow()
+            : AccessDecision.deny("missing add");
       }
     };
     RepositorySecurityFilter filter = new RepositorySecurityFilter(
@@ -484,9 +484,10 @@ class RepositorySecurityFilterTest {
 
     filter.doFilter(request("PUT", "/repository/cargo-hosted/api/v1/crates/new"), response.proxy(), chain);
 
-    assertEquals(1, chain.calls);
-    assertEquals(2, decisions.decisions);
-    assertEquals(PermissionAction.EDIT, decisions.permission.action());
+    assertEquals(0, chain.calls);
+    assertEquals(1, decisions.decisions);
+    assertEquals(PermissionAction.ADD, decisions.permission.action());
+    assertEquals(HttpServletResponse.SC_FORBIDDEN, response.status);
   }
 
   private static RepositoryRecord repository(String name) {

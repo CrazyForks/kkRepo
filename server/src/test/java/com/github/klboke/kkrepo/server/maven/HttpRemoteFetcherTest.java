@@ -1,6 +1,7 @@
 package com.github.klboke.kkrepo.server.maven;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -143,6 +144,23 @@ class HttpRemoteFetcherTest {
         .withRepository(runtime);
 
     assertEquals("Bearer upstream-token", request.authorizationHeader());
+  }
+
+  @Test
+  void requestWithRepositoryOnlyAddsAuthorizationForPinnedRemoteHost() {
+    RepositoryRuntime runtime = runtime("robot", "secret", null);
+
+    HttpRemoteFetcher.Request differentHost = HttpRemoteFetcher.Request
+        .get("https://static.example.com/crates/demo/1.0.0/download")
+        .withRepository(runtime);
+    HttpRemoteFetcher.Request suppressed = HttpRemoteFetcher.Request
+        .get("https://repo.example.com/maven2/com/example/app.jar")
+        .withRepository(runtime, false);
+
+    assertNull(differentHost.trustedHost());
+    assertNull(differentHost.authorizationHeader());
+    assertEquals("repo.example.com", suppressed.trustedHost());
+    assertNull(suppressed.authorizationHeader());
   }
 
   @Test

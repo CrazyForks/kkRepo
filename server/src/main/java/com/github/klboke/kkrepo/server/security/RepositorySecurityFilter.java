@@ -184,7 +184,7 @@ public class RepositorySecurityFilter extends OncePerRequestFilter {
       return List.of(PermissionAction.READ, PermissionAction.BROWSE);
     }
     if (format == RepositoryFormat.CARGO && isCargoPublishRoute(method, path)) {
-      return List.of(PermissionAction.ADD, PermissionAction.EDIT);
+      return List.of(PermissionAction.ADD);
     }
     if (format == RepositoryFormat.CARGO && isCargoYankRoute(method, path)) {
       return List.of(PermissionAction.EDIT);

@@ -117,6 +117,59 @@ class CargoPublishPayloadTest {
     }
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  void crateInspectorReadsPackageDependencyTablesForUiUpload() throws Exception {
+    byte[] crate = crateArchiveWithManifest("table_demo", "0.1.0", """
+        [package]
+        name = "table_demo"
+        version = "0.1.0"
+
+        [dependencies.serde]
+        version = "1"
+        features = ["derive"]
+        optional = true
+
+        [dev-dependencies.tempfile]
+        version = "3"
+
+        [target.'cfg(windows)'.dependencies.windows-sys]
+        version = "0.52"
+        default-features = false
+        """);
+    Path archive = Files.createTempFile("kkrepo-cargo-test-", ".crate");
+    Files.write(archive, crate);
+    try {
+      CargoPublishPayload.CargoPackageMetadata metadata =
+          CargoPublishPayload.CargoPackageMetadata.fromManifest(CargoCrateInspector.inspect(archive));
+      List<Map<String, Object>> deps = (List<Map<String, Object>>) metadata.indexEntry("abc123", false).get("deps");
+
+      assertEquals(3, deps.size());
+      assertEquals("serde", deps.get(0).get("name"));
+      assertEquals(List.of("derive"), deps.get(0).get("features"));
+      assertEquals(true, deps.get(0).get("optional"));
+      assertEquals("dev", deps.get(1).get("kind"));
+      assertEquals("tempfile", deps.get(1).get("name"));
+      assertEquals("cfg(windows)", deps.get(2).get("target"));
+      assertEquals(false, deps.get(2).get("default_features"));
+    } finally {
+      Files.deleteIfExists(archive);
+    }
+  }
+
+  @Test
+  void crateInspectorRejectsOversizedManifest() throws Exception {
+    byte[] crate = crateArchiveWithManifest("large_demo", "0.1.0",
+        "a".repeat(CargoCrateInspector.MAX_MANIFEST_BYTES + 1));
+    Path archive = Files.createTempFile("kkrepo-cargo-test-", ".crate");
+    Files.write(archive, crate);
+    try {
+      assertThrows(CargoExceptions.BadRequestException.class, () -> CargoCrateInspector.inspect(archive));
+    } finally {
+      Files.deleteIfExists(archive);
+    }
+  }
+
   private static Map<String, Object> publishMetadata(String name, String version) {
     Map<String, Object> dependency = new LinkedHashMap<>();
     dependency.put("name", "serde");

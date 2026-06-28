@@ -3,6 +3,7 @@ package com.github.klboke.kkrepo.server.cargo;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +16,11 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 
 final class CargoCrateInspector {
+  static final int MAX_TAR_ENTRIES = 4096;
+  static final int MAX_MANIFEST_BYTES = 1024 * 1024;
+  static final int MAX_LOGICAL_LINES = 8192;
+  static final int MAX_LOGICAL_LINE_CHARS = 64 * 1024;
+
   private CargoCrateInspector() {
   }
 
@@ -23,11 +29,16 @@ final class CargoCrateInspector {
         var gzip = new GzipCompressorInputStream(file);
         var tar = new TarArchiveInputStream(gzip)) {
       TarArchiveEntry entry;
+      int entries = 0;
       while ((entry = tar.getNextEntry()) != null) {
+        entries++;
+        if (entries > MAX_TAR_ENTRIES) {
+          throw new CargoExceptions.BadRequestException(".crate archive contains too many entries");
+        }
         if (!entry.isFile() || !entry.getName().endsWith("/Cargo.toml")) {
           continue;
         }
-        return parseManifest(tar);
+        return parseManifest(readManifest(tar, entry));
       }
     } catch (IOException e) {
       throw new CargoExceptions.BadRequestException("Invalid .crate archive", e);
@@ -35,12 +46,24 @@ final class CargoCrateInspector {
     throw new CargoExceptions.BadRequestException(".crate archive does not contain Cargo.toml");
   }
 
-  private static Manifest parseManifest(TarArchiveInputStream in) throws IOException {
+  private static String readManifest(TarArchiveInputStream in, TarArchiveEntry entry) throws IOException {
+    if (entry.getSize() > MAX_MANIFEST_BYTES) {
+      throw new CargoExceptions.BadRequestException("Cargo.toml is too large");
+    }
+    byte[] bytes = in.readNBytes(MAX_MANIFEST_BYTES + 1);
+    if (bytes.length > MAX_MANIFEST_BYTES) {
+      throw new CargoExceptions.BadRequestException("Cargo.toml is too large");
+    }
+    return new String(bytes, StandardCharsets.UTF_8);
+  }
+
+  private static Manifest parseManifest(String manifest) throws IOException {
     String section = "";
     Map<String, Object> packageValues = new LinkedHashMap<>();
     Map<String, Object> features = new LinkedHashMap<>();
     List<Object> dependencies = new ArrayList<>();
-    try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+    Map<DependencyTable, Map<String, Object>> dependencyTables = new LinkedHashMap<>();
+    try (BufferedReader reader = new BufferedReader(new StringReader(manifest))) {
       for (String trimmed : logicalLines(reader)) {
         if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
           section = trimmed.substring(1, trimmed.length() - 1).trim();
@@ -69,8 +92,22 @@ final class CargoCrateInspector {
             if (dependency != null) {
               dependencies.add(dependency);
             }
+          } else {
+            DependencyTable table = dependencyTable(section);
+            if (table != null) {
+              dependencyTables.computeIfAbsent(table, ignored -> new LinkedHashMap<>()).put(key, value);
+            }
           }
         }
+      }
+    }
+    for (Map.Entry<DependencyTable, Map<String, Object>> entry : dependencyTables.entrySet()) {
+      Map<String, Object> dependency = dependency(
+          entry.getKey().name(),
+          entry.getValue(),
+          entry.getKey().section());
+      if (dependency != null) {
+        dependencies.add(dependency);
       }
     }
     String name = text(packageValues.get("name"));
@@ -109,6 +146,9 @@ final class CargoCrateInspector {
     StringBuilder current = new StringBuilder();
     String line;
     while ((line = reader.readLine()) != null) {
+      if (line.length() > MAX_LOGICAL_LINE_CHARS) {
+        throw new CargoExceptions.BadRequestException("Cargo.toml line is too long");
+      }
       String trimmed = stripComment(line).trim();
       if (trimmed.isBlank()) {
         continue;
@@ -117,13 +157,22 @@ final class CargoCrateInspector {
         current.append(' ');
       }
       current.append(trimmed);
+      if (current.length() > MAX_LOGICAL_LINE_CHARS) {
+        throw new CargoExceptions.BadRequestException("Cargo.toml logical line is too long");
+      }
       if (balanced(current)) {
         lines.add(current.toString());
+        if (lines.size() > MAX_LOGICAL_LINES) {
+          throw new CargoExceptions.BadRequestException("Cargo.toml contains too many logical lines");
+        }
         current.setLength(0);
       }
     }
     if (!current.isEmpty()) {
       lines.add(current.toString());
+      if (lines.size() > MAX_LOGICAL_LINES) {
+        throw new CargoExceptions.BadRequestException("Cargo.toml contains too many logical lines");
+      }
     }
     return lines;
   }
@@ -387,6 +436,55 @@ final class CargoCrateInspector {
     return new DependencySection(kind, unquote(target));
   }
 
+  private static DependencyTable dependencyTable(String section) {
+    DependencyTable direct = directDependencyTable(section);
+    if (direct != null) {
+      return direct;
+    }
+    if (!section.startsWith("target.")) {
+      return null;
+    }
+    String body = section.substring("target.".length());
+    return targetDependencyTable(body, ".dev-dependencies.", "dev")
+        .or(() -> targetDependencyTable(body, ".build-dependencies.", "build"))
+        .or(() -> targetDependencyTable(body, ".dependencies.", "normal"))
+        .orElse(null);
+  }
+
+  private static DependencyTable directDependencyTable(String section) {
+    if (section.startsWith("dependencies.")) {
+      return new DependencyTable(normalizeKey(section.substring("dependencies.".length())),
+          new DependencySection("normal", null));
+    }
+    if (section.startsWith("dev-dependencies.")) {
+      return new DependencyTable(normalizeKey(section.substring("dev-dependencies.".length())),
+          new DependencySection("dev", null));
+    }
+    if (section.startsWith("build-dependencies.")) {
+      return new DependencyTable(normalizeKey(section.substring("build-dependencies.".length())),
+          new DependencySection("build", null));
+    }
+    return null;
+  }
+
+  private static java.util.Optional<DependencyTable> targetDependencyTable(
+      String section,
+      String marker,
+      String kind) {
+    int markerAt = section.indexOf(marker);
+    if (markerAt < 0) {
+      return java.util.Optional.empty();
+    }
+    String target = section.substring(0, markerAt);
+    String name = section.substring(markerAt + marker.length());
+    if (target.isBlank() || name.isBlank()) {
+      return java.util.Optional.empty();
+    }
+    return java.util.Optional.of(new DependencyTable(
+        normalizeKey(name),
+        new DependencySection(kind, unquote(target))));
+  }
+
   private static List<String> stringList(Object value) {
     if (!(value instanceof Iterable<?> iterable)) {
       return List.of();
@@ -466,6 +564,9 @@ final class CargoCrateInspector {
   }
 
   private record DependencySection(String kind, String target) {
+  }
+
+  private record DependencyTable(String name, DependencySection section) {
   }
 
   record Manifest(String name, String version, Map<String, Object> publishJson) {
