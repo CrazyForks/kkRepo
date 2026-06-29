@@ -382,6 +382,7 @@ PY
   run_logged helm-repo-add helm repo add "kkrepo-e2e-$STAMP" "$KKREPO_URL/repository/helm-hosted" \
     --username "$KKREPO_USER" --password "$KKREPO_PASSWORD"
   run_logged helm-repo-update helm repo update
+  mkdir -p "$dir/pulled"
   run_logged helm-pull helm pull "kkrepo-e2e-$STAMP/$chart" --version 1.0.0 --destination "$dir/pulled"
   test -f "$dir/pulled/$chart-1.0.0.tgz"
 }
