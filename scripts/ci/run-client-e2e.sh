@@ -432,11 +432,7 @@ EOF
 [registries.kkrepo]
 index = "sparse+$KKREPO_URL/repository/cargo-group/"
 EOF
-  cat >>"$fetch_dir/Cargo.toml" <<EOF
-
-[dependencies]
-$crate = { version = "0.1.0", registry = "kkrepo" }
-EOF
+  echo "$crate = { version = \"0.1.0\", registry = \"kkrepo\" }" >>"$fetch_dir/Cargo.toml"
   run_logged_in cargo-fetch "$fetch_dir" env \
     CARGO_HOME="$cargo_home" \
     CARGO_TARGET_DIR="$cargo_target-fetch" \
