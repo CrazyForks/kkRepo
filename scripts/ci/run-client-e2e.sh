@@ -639,8 +639,8 @@ test_docker_oci() {
     mkdir -p "$oras_dir/pull"
     echo "kkrepo oci artifact $STAMP" >"$oras_dir/payload.txt"
     run_logged oras-login bash -lc "printf '%s\n' \"$KKREPO_PASSWORD\" | oras login --plain-http '$KKREPO_DOCKER_HOSTED_REGISTRY' --username '$KKREPO_USER' --password-stdin"
-    run_logged oras-push oras push --plain-http "$KKREPO_DOCKER_HOSTED_REGISTRY/$image:oras-$STAMP" "$oras_dir/payload.txt:application/vnd.kkrepo.client-e2e"
-    run_logged oras-pull oras pull --plain-http "$KKREPO_DOCKER_HOSTED_REGISTRY/$image:oras-$STAMP" -o "$oras_dir/pull"
+    run_logged_in oras-push "$oras_dir" oras push --plain-http "$KKREPO_DOCKER_HOSTED_REGISTRY/$image:oras-$STAMP" "payload.txt:application/vnd.kkrepo.client-e2e"
+    run_logged_in oras-pull "$oras_dir" oras pull --plain-http "$KKREPO_DOCKER_HOSTED_REGISTRY/$image:oras-$STAMP" -o "$oras_dir/pull"
     test -f "$oras_dir/pull/payload.txt"
   else
     log "oras not found; Docker image client flow completed, ORAS artifact flow skipped"
