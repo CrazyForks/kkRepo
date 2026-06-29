@@ -535,7 +535,14 @@ test_rubygems() {
   local dir="$WORK_DIR/rubygems"
   local name="kkrepo_client_e2e_rubygems_$STAMP"
   local gem_home="$WORK_DIR/gem-home"
-  mkdir -p "$dir/lib" "$gem_home"
+  local gem_user_home="$WORK_DIR/rubygems-home"
+  local gem_credentials="$gem_user_home/.gem/credentials"
+  local token
+  token="$(create_api_key RubyGemsApiKey "client e2e rubygems $STAMP")"
+  add_redaction_value "$token"
+  mkdir -p "$dir/lib" "$gem_home" "$gem_user_home/.gem"
+  printf -- '---\n:kkrepo: %s\n' "$token" >"$gem_credentials"
+  chmod 0600 "$gem_credentials"
   cat >"$dir/$name.gemspec" <<EOF
 Gem::Specification.new do |spec|
   spec.name = "$name"
@@ -548,8 +555,9 @@ end
 EOF
   echo 'module KkRepoClientE2ERubyGems; VALUE = "kkrepo client e2e"; end' >"$dir/lib/$name.rb"
   run_logged_in rubygems-build "$dir" gem build "$name.gemspec" --output "$dir/$name-1.0.0.gem"
-  run_logged rubygems-push gem push "$dir/$name-1.0.0.gem" \
-    --host "$KKREPO_AUTH_URL/repository/rubygems-hosted/"
+  run_logged rubygems-push env HOME="$gem_user_home" gem push "$dir/$name-1.0.0.gem" \
+    --host "$KKREPO_URL/repository/rubygems-hosted/" \
+    --key kkrepo
   wait_for_body_contains rubygems-versions "$name" \
     "$KKREPO_URL/repository/rubygems-group/versions" \
     "$ARTIFACT_DIR/rubygems-versions"

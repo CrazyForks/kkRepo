@@ -149,6 +149,15 @@ public class SecurityAuthenticationService {
   }
 
   @Transactional
+  public Optional<AuthenticatedSubject> authenticateRubygems(HttpServletRequest request) {
+    Optional<AuthenticatedSubject> apiKey = authenticateRubygemsApiKey(request);
+    if (apiKey.isPresent()) {
+      return apiKey;
+    }
+    return authenticate(request);
+  }
+
+  @Transactional
   public Optional<AuthenticatedSubject> authenticateCredentials(String username, String password) {
     if (username == null || username.isBlank() || password == null) {
       return Optional.empty();
@@ -268,6 +277,20 @@ public class SecurityAuthenticationService {
       }
     }
     return Optional.empty();
+  }
+
+  private Optional<AuthenticatedSubject> authenticateRubygemsApiKey(HttpServletRequest request) {
+    String authorization = request.getHeader("Authorization");
+    if (authorization == null || authorization.isBlank()
+        || authorization.regionMatches(true, 0, "Basic ", 0, 6)
+        || authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
+      return Optional.empty();
+    }
+    String token = authorization.trim();
+    return apiKeyAuthCache == null
+        ? resolveApiKey(ApiKeyTokenCandidate.fromPresentedRubygemsToken(token))
+        : apiKeyAuthCache.find("rubygems:" + token,
+            () -> resolveApiKey(ApiKeyTokenCandidate.fromPresentedRubygemsToken(token)));
   }
 
   private Optional<AuthenticatedSubject> resolveApiKey(List<ApiKeyTokenCandidate> candidates) {

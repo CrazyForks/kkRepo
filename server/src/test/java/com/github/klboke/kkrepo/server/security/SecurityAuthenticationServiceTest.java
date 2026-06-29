@@ -321,6 +321,41 @@ class SecurityAuthenticationServiceTest {
   }
 
   @Test
+  void rubygemsAuthenticationAcceptsRawAuthorizationTokenWithoutChangingNormalAuth() {
+    FakeSecurityDao dao = new FakeSecurityDao();
+    dao.user(user(1L, "Local", "alice", NEXUS_SHIRO1_ADMIN123));
+    dao.roles(1L, "rubygems-publisher");
+    dao.apiKey(new ApiKeyRecord(
+        13L,
+        "RubyGemsApiKey",
+        "Local",
+        "alice",
+        "RubyGems API key",
+        "ACTIVE",
+        SecurityHashing.sha256("rubygems-secret"),
+        "RubyGemsApi",
+        Map.of("values", List.of()),
+        "{}",
+        null,
+        null,
+        null,
+        null));
+    SecurityAuthenticationService service = service(dao);
+
+    Optional<AuthenticatedSubject> authenticated = service.authenticateRubygems(request(Map.of(
+        "Authorization", "rubygems-secret")));
+    Optional<AuthenticatedSubject> normalAuthenticated = service.authenticate(request(Map.of(
+        "Authorization", "rubygems-secret")));
+
+    assertTrue(authenticated.isPresent());
+    assertEquals("alice", authenticated.get().userId());
+    assertEquals("api-key", authenticated.get().realmId());
+    assertTrue(authenticated.get().permissionSubject().groupIds().contains("rubygems-publisher"));
+    assertTrue(normalAuthenticated.isEmpty());
+    assertEquals(13L, dao.lastUsedApiKeyId);
+  }
+
+  @Test
   void cargoAuthenticationPrefersCargoDomainWhenBareTokenCollides() {
     FakeSecurityDao dao = new FakeSecurityDao();
     dao.user(user(1L, "Local", "npm-user", NEXUS_SHIRO1_ADMIN123));
