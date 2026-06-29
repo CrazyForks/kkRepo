@@ -589,7 +589,7 @@ EOF
   run_logged rubygems-install env GEM_HOME="$gem_home" GEM_PATH="$gem_home" \
     gem install "$name" --version 1.0.0 --clear-sources \
     --source "$KKREPO_AUTH_URL/repository/rubygems-group/" \
-    --no-document --user-install --verbose
+    --no-document --verbose
   test -f "$gem_home/gems/$name-1.0.0/lib/$name.rb"
 }
 
