@@ -25,6 +25,17 @@ class MavenErrorAdviceTest {
   }
 
   @Test
+  void cargoNotFoundReturnsEmptyNotFoundForIndexMisses() {
+    MavenErrorAdvice advice = new MavenErrorAdvice();
+
+    ResponseEntity<Void> response = advice.cargoNotFound(
+        new CargoExceptions.CargoNotFoundException("missing-crate"));
+
+    assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    assertEquals(null, response.getBody());
+  }
+
+  @Test
   @SuppressWarnings("unchecked")
   void cargoBadRequestUsesCargoErrorBodyShape() {
     MavenErrorAdvice advice = new MavenErrorAdvice();

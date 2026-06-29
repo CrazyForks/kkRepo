@@ -69,8 +69,8 @@ public class MavenErrorAdvice {
   }
 
   @ExceptionHandler(CargoExceptions.CargoNotFoundException.class)
-  public ResponseEntity<Map<String, Object>> cargoNotFound(CargoExceptions.CargoNotFoundException e) {
-    return cargoBody(HttpStatus.NOT_FOUND, e.getMessage());
+  public ResponseEntity<Void> cargoNotFound(CargoExceptions.CargoNotFoundException e) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
   }
 
   @ExceptionHandler(CargoExceptions.BadRequestException.class)
