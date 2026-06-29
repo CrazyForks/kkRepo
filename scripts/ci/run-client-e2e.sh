@@ -409,7 +409,11 @@ repository = "https://example.invalid/kkrepo-client-e2e"
 [lib]
 path = "src/lib.rs"
 EOF
-  echo 'pub fn message() -> &'\"'\"'static str { "kkrepo client e2e" }' >"$crate_dir/src/lib.rs"
+  cat >"$crate_dir/src/lib.rs" <<'EOF'
+pub fn message() -> &'static str {
+    "kkrepo client e2e"
+}
+EOF
   cat >"$crate_dir/.cargo/config.toml" <<EOF
 [registries.kkrepo]
 index = "sparse+$KKREPO_URL/repository/cargo-hosted/"
