@@ -153,10 +153,28 @@ run_logged_output_in() {
 
 write_nuget_config() {
   local file="$1"
+  local source_name="$2"
+  local source_url="$3"
   cat >"$file" <<'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
-  <packageSources />
+  <config>
+EOF
+  printf '    <add key="defaultPushSource" value="%s" />\n' "$source_url" >>"$file"
+  cat >>"$file" <<'EOF'
+  </config>
+  <packageSources>
+    <clear />
+EOF
+  printf '    <add key="%s" value="%s" protocolVersion="3" allowInsecureConnections="true" />\n' "$source_name" "$source_url" >>"$file"
+  cat >>"$file" <<EOF
+  </packageSources>
+  <packageSourceCredentials>
+    <$source_name>
+      <add key="Username" value="$KKREPO_USER" />
+      <add key="ClearTextPassword" value="$KKREPO_PASSWORD" />
+    </$source_name>
+  </packageSourceCredentials>
 </configuration>
 EOF
 }
@@ -491,32 +509,19 @@ test_nuget() {
   token="$(create_api_key NuGetApiKey "client e2e nuget $STAMP")"
   add_redaction_value "$token"
   mkdir -p "$dir" "$restore_dir" "$packages_dir"
-  write_nuget_config "$dir/NuGet.Config"
-  write_nuget_config "$restore_dir/NuGet.Config"
+  write_nuget_config "$dir/NuGet.Config" "kkrepoHosted" "$KKREPO_URL/repository/nuget-hosted/index.json"
+  write_nuget_config "$restore_dir/NuGet.Config" "kkrepoGroup" "$KKREPO_URL/repository/nuget-group/index.json"
   run_logged nuget-new dotnet new classlib -n "$package" -o "$dir/$package" --framework net8.0
   run_logged nuget-pack dotnet pack "$dir/$package/$package.csproj" \
     -p:PackageId="$package" -p:Version=1.0.0 -o "$dir/out"
-  run_logged nuget-add-hosted-source dotnet nuget add source "$KKREPO_URL/repository/nuget-hosted/index.json" \
-    --name kkrepo-hosted \
-    --configfile "$dir/NuGet.Config" \
-    --username "$KKREPO_USER" \
-    --password "$KKREPO_PASSWORD" \
-    --store-password-in-clear-text
   run_logged nuget-push dotnet nuget push "$dir/out/$package.1.0.0.nupkg" \
-    --source kkrepo-hosted \
+    --source kkrepoHosted \
     --configfile "$dir/NuGet.Config" \
     --api-key "$token" \
     --timeout 120
   run_logged nuget-consumer-new dotnet new console -n Consumer -o "$restore_dir/Consumer" --framework net8.0
-  run_logged nuget-add-source dotnet nuget add source "$KKREPO_URL/repository/nuget-group/index.json" \
-    --name kkrepo-client-e2e \
-    --configfile "$restore_dir/NuGet.Config" \
-    --username "$KKREPO_USER" \
-    --password "$KKREPO_PASSWORD" \
-    --store-password-in-clear-text
   run_logged nuget-add-package dotnet add "$restore_dir/Consumer/Consumer.csproj" package "$package" \
     --version 1.0.0 \
-    --source "$KKREPO_URL/repository/nuget-group/index.json" \
     --configfile "$restore_dir/NuGet.Config" \
     --package-directory "$packages_dir"
   run_logged nuget-restore dotnet restore "$restore_dir/Consumer/Consumer.csproj" \
