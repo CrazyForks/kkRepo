@@ -153,7 +153,7 @@ AI agent 和贡献者的开发说明见 [AGENTS.md](AGENTS.md)。
 6. Conda
 7. Composer / PHP
 
-用户和管理端 UI 已暴露的 token 类型包括 `NpmToken`、`CargoToken`、`NuGetApiKey`、`RubyGemsApiKey` 和 `GenericToken`，用于协议客户端和自动化场景。
+用户和管理端 UI 已暴露的 token 类型包括协议专用 token（`NpmToken`、`CargoToken`、`NuGetApiKey`、`RubyGemsApiKey`），以及面向 CI、脚本和自定义 HTTP 客户端的 `GenericToken`；`GenericToken` 适用于能够发送已配置 API-key header 或 bearer token 的调用方。
 
 ## 参与贡献
 
