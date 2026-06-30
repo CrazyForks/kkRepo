@@ -298,10 +298,11 @@ gem push demo-1.0.0.gem \
 
 在 **My Token** 中创建 `RubyGemsApiKey` token，并把完整生成 token 值写入 credentials 文件，例如 `RubyGemsApiKey.<secret>`。RubyGems 会把选中的 key 作为请求 `Authorization` 值发送。
 
-对于不绑定特定协议 token 格式的 CI、脚本和 HTTP 客户端，可以创建 `GenericToken`，并通过配置的 API-key header 传完整生成 token：
+对于不绑定特定协议 token 格式的 CI、脚本和 HTTP 客户端，可以创建 `GenericToken`，并通过配置的 API-key header 把完整生成 token 传给 hosted 上传 endpoint：
 
 ```bash
 curl -H "X-Nexus-Plus-Token: $KKREPO_GENERIC_TOKEN" \
+  --data-binary @demo-1.0.0.gem \
   https://nexus.example.com/repository/rubygems-hosted/api/v1/gems
 ```
 

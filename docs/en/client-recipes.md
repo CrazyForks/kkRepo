@@ -298,10 +298,11 @@ gem push demo-1.0.0.gem \
 
 Create the key as a `RubyGemsApiKey` token in **My Token** and store the full generated token value, for example `RubyGemsApiKey.<secret>`, in the credentials file. RubyGems sends the selected key as the request `Authorization` value.
 
-For CI jobs, scripts, and HTTP clients that are not tied to a protocol-specific token format, create a `GenericToken` and send the full generated token through the configured API-key header:
+For CI jobs, scripts, and HTTP clients that are not tied to a protocol-specific token format, create a `GenericToken` and send the full generated token through the configured API-key header to the hosted upload endpoint:
 
 ```bash
 curl -H "X-Nexus-Plus-Token: $KKREPO_GENERIC_TOKEN" \
+  --data-binary @demo-1.0.0.gem \
   https://nexus.example.com/repository/rubygems-hosted/api/v1/gems
 ```
 
