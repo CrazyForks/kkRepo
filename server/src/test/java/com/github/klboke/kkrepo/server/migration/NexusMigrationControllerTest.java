@@ -15,6 +15,8 @@ import com.github.klboke.kkrepo.migration.nexus.NexusApiMigrationService.NexusMi
 import com.github.klboke.kkrepo.persistence.mysql.dao.BlobStoreDao;
 import com.github.klboke.kkrepo.persistence.mysql.model.BlobStoreRecord;
 import com.github.klboke.kkrepo.server.catalog.CatalogCacheBroadcaster;
+import com.github.klboke.kkrepo.server.docker.DockerConnectorManager;
+import com.github.klboke.kkrepo.server.docker.DockerConnectorRuntime;
 import com.github.klboke.kkrepo.server.maven.BlobStorageRegistry;
 import com.github.klboke.kkrepo.server.maven.RepositoryRuntimeRegistry;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCatalogCache;
@@ -179,6 +181,7 @@ class NexusMigrationControllerTest {
         null,
         null,
         null,
+        null,
         null);
     MockHttpServletRequest request = new MockHttpServletRequest(
         "POST",
@@ -249,6 +252,7 @@ class NexusMigrationControllerTest {
     CountingBlobStorageRegistry blobStorageRegistry = new CountingBlobStorageRegistry();
     CountingSecurityCatalogCache securityCatalogCache = new CountingSecurityCatalogCache();
     CountingSecurityAuthorizationCache securityAuthorizationCache = new CountingSecurityAuthorizationCache();
+    CountingDockerConnectorRuntime dockerConnectorRuntime = new CountingDockerConnectorRuntime();
     NexusMigrationController controller = new TestableNexusMigrationController(
         defaultBlobStore(),
         migrationService,
@@ -256,7 +260,8 @@ class NexusMigrationControllerTest {
         runtimeRegistry,
         blobStorageRegistry,
         securityCatalogCache,
-        securityAuthorizationCache);
+        securityAuthorizationCache,
+        dockerConnectorRuntime);
     MockHttpServletRequest request = new MockHttpServletRequest(
         "POST",
         "/internal/migration/nexus/run");
@@ -280,12 +285,14 @@ class NexusMigrationControllerTest {
     assertEquals(1, runtimeRegistry.invalidations);
     assertEquals(1, securityCatalogCache.refreshes);
     assertEquals(1, securityAuthorizationCache.invalidations);
+    assertEquals(1, dockerConnectorRuntime.syncs);
   }
 
   private static NexusMigrationController controllerWith(BlobStoreRecord defaultStore) {
     return new NexusMigrationController(
         null,
         new StubBlobStoreDao(defaultStore),
+        null,
         null,
         null,
         null,
@@ -390,7 +397,8 @@ class NexusMigrationControllerTest {
         RepositoryRuntimeRegistry runtimeRegistry,
         BlobStorageRegistry blobStorageRegistry,
         SecurityCatalogCache securityCatalogCache,
-        SecurityAuthorizationCache securityAuthorizationCache) {
+        SecurityAuthorizationCache securityAuthorizationCache,
+        DockerConnectorRuntime dockerConnectorRuntime) {
       super(
           null,
           new StubBlobStoreDao(defaultStore),
@@ -405,7 +413,8 @@ class NexusMigrationControllerTest {
           runtimeRegistry,
           blobStorageRegistry,
           securityCatalogCache,
-          securityAuthorizationCache);
+          securityAuthorizationCache,
+          dockerConnectorRuntime);
       this.migrationService = migrationService;
     }
 
@@ -504,6 +513,20 @@ class NexusMigrationControllerTest {
     @Override
     public void invalidateAllAfterCommit() {
       invalidations++;
+    }
+  }
+
+  private static final class CountingDockerConnectorRuntime extends DockerConnectorRuntime {
+    private int syncs;
+
+    private CountingDockerConnectorRuntime() {
+      super(null);
+    }
+
+    @Override
+    public synchronized DockerConnectorManager.Snapshot sync() {
+      syncs++;
+      return null;
     }
   }
 

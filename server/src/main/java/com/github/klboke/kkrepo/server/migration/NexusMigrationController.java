@@ -13,6 +13,7 @@ import com.github.klboke.kkrepo.persistence.mysql.dao.MigrationJobDao;
 import com.github.klboke.kkrepo.persistence.mysql.dao.RepositoryDao;
 import com.github.klboke.kkrepo.persistence.mysql.dao.SecurityDao;
 import com.github.klboke.kkrepo.persistence.mysql.model.BlobStoreRecord;
+import com.github.klboke.kkrepo.server.docker.DockerConnectorRuntime;
 import com.github.klboke.kkrepo.server.maven.BlobStorageRegistry;
 import com.github.klboke.kkrepo.server.maven.RepositoryRuntimeRegistry;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCatalogCache;
@@ -60,6 +61,7 @@ public class NexusMigrationController {
   private final BlobStorageRegistry blobStorageRegistry;
   private final SecurityCatalogCache securityCatalogCache;
   private final SecurityAuthorizationCache securityAuthorizationCache;
+  private final DockerConnectorRuntime dockerConnectorRuntime;
 
   public NexusMigrationController(
       ObjectMapper objectMapper,
@@ -75,7 +77,8 @@ public class NexusMigrationController {
       RepositoryRuntimeRegistry runtimeRegistry,
       BlobStorageRegistry blobStorageRegistry,
       SecurityCatalogCache securityCatalogCache,
-      SecurityAuthorizationCache securityAuthorizationCache) {
+      SecurityAuthorizationCache securityAuthorizationCache,
+      DockerConnectorRuntime dockerConnectorRuntime) {
     this.objectMapper = objectMapper;
     this.blobStoreDao = blobStoreDao;
     this.repositoryDao = repositoryDao;
@@ -90,6 +93,7 @@ public class NexusMigrationController {
     this.blobStorageRegistry = blobStorageRegistry;
     this.securityCatalogCache = securityCatalogCache;
     this.securityAuthorizationCache = securityAuthorizationCache;
+    this.dockerConnectorRuntime = dockerConnectorRuntime;
   }
 
   @PostMapping("/preflight")
@@ -133,6 +137,9 @@ public class NexusMigrationController {
     }
     if (securityAuthorizationCache != null) {
       securityAuthorizationCache.invalidateAllAfterCommit();
+    }
+    if (dockerConnectorRuntime != null) {
+      dockerConnectorRuntime.sync();
     }
   }
 
