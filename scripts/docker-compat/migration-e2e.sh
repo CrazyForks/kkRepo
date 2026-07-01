@@ -640,14 +640,17 @@ PY
 }
 
 refresh_kkrepo_password_after_metadata_migration() {
-  if curl -m 10 -fsS -u "$KKREPO_USER:$KKREPO_PASSWORD" \
-      "$KKREPO_URL/internal/security/session" >/dev/null 2>&1; then
-    return 0
-  fi
   if curl -m 10 -fsS -u "$KKREPO_USER:$NEXUS_PASSWORD" \
       "$KKREPO_URL/internal/security/session" >/dev/null 2>&1; then
+    if [[ "$KKREPO_PASSWORD" != "$NEXUS_PASSWORD" ]]; then
+      log "kkrepo admin password now matches migrated source Nexus password"
+    fi
     KKREPO_PASSWORD="$NEXUS_PASSWORD"
-    log "kkrepo admin password now matches migrated source Nexus password"
+    return 0
+  fi
+  if curl -m 10 -fsS -u "$KKREPO_USER:$KKREPO_PASSWORD" \
+      "$KKREPO_URL/internal/security/session" >/dev/null 2>&1; then
+    log "kkrepo admin password remains the pre-migration password"
     return 0
   fi
   log "kkrepo admin password did not authenticate with the pre-migration or migrated source password"

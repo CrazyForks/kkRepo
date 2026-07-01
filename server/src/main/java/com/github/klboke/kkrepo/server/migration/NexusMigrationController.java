@@ -17,7 +17,9 @@ import com.github.klboke.kkrepo.server.docker.DockerConnectorRuntime;
 import com.github.klboke.kkrepo.server.maven.BlobStorageRegistry;
 import com.github.klboke.kkrepo.server.maven.RepositoryRuntimeRegistry;
 import com.github.klboke.kkrepo.server.repositories.RepositoryCatalogCache;
+import com.github.klboke.kkrepo.server.security.ApiKeyAuthCache;
 import com.github.klboke.kkrepo.server.security.AuthenticatedSubject;
+import com.github.klboke.kkrepo.server.security.BasicAuthCache;
 import com.github.klboke.kkrepo.server.security.SecurityAuthenticationService;
 import com.github.klboke.kkrepo.server.security.SecurityAuthorizationCache;
 import com.github.klboke.kkrepo.server.security.SecurityCatalogCache;
@@ -61,6 +63,8 @@ public class NexusMigrationController {
   private final BlobStorageRegistry blobStorageRegistry;
   private final SecurityCatalogCache securityCatalogCache;
   private final SecurityAuthorizationCache securityAuthorizationCache;
+  private final ApiKeyAuthCache apiKeyAuthCache;
+  private final BasicAuthCache basicAuthCache;
   private final DockerConnectorRuntime dockerConnectorRuntime;
 
   public NexusMigrationController(
@@ -78,6 +82,8 @@ public class NexusMigrationController {
       BlobStorageRegistry blobStorageRegistry,
       SecurityCatalogCache securityCatalogCache,
       SecurityAuthorizationCache securityAuthorizationCache,
+      ApiKeyAuthCache apiKeyAuthCache,
+      BasicAuthCache basicAuthCache,
       DockerConnectorRuntime dockerConnectorRuntime) {
     this.objectMapper = objectMapper;
     this.blobStoreDao = blobStoreDao;
@@ -93,6 +99,8 @@ public class NexusMigrationController {
     this.blobStorageRegistry = blobStorageRegistry;
     this.securityCatalogCache = securityCatalogCache;
     this.securityAuthorizationCache = securityAuthorizationCache;
+    this.apiKeyAuthCache = apiKeyAuthCache;
+    this.basicAuthCache = basicAuthCache;
     this.dockerConnectorRuntime = dockerConnectorRuntime;
   }
 
@@ -137,6 +145,12 @@ public class NexusMigrationController {
     }
     if (securityAuthorizationCache != null) {
       securityAuthorizationCache.invalidateAllAfterCommit();
+    }
+    if (apiKeyAuthCache != null) {
+      apiKeyAuthCache.evictAll();
+    }
+    if (basicAuthCache != null) {
+      basicAuthCache.evictAll();
     }
     if (dockerConnectorRuntime != null) {
       dockerConnectorRuntime.sync();
