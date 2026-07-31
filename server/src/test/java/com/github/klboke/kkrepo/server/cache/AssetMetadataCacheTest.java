@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.klboke.kkrepo.cache.SharedCache;
@@ -14,7 +16,7 @@ import com.github.klboke.kkrepo.persistence.jdbc.api.model.AssetBlobRecord;
 import com.github.klboke.kkrepo.persistence.jdbc.api.model.AssetRecord;
 import com.github.klboke.kkrepo.server.cache.AssetMetadataCache.Loaded;
 import com.github.klboke.kkrepo.server.support.InMemorySharedCache;
-import java.time.Duration;
+import com.github.klboke.kkrepo.server.support.InMemoryVersionWatermark;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -215,6 +217,67 @@ class AssetMetadataCacheTest {
     assertFalse(sharedCache.getString("asset-metadata", "7:b.jar").isPresent());
     assertTrue(sharedCache.getString("asset-metadata", "8:c.jar").isPresent(),
         "repo 8 entries untouched");
+  }
+
+  @Test
+  void repositoryWatermarkInvalidatesSiblingReplicaCache() {
+    InMemoryVersionWatermark watermark = new InMemoryVersionWatermark();
+    AssetMetadataCache writerReplica = new AssetMetadataCache(
+        new InMemorySharedCache(), watermark, true, 120, 5);
+    AssetMetadataCache readerReplica = new AssetMetadataCache(
+        new InMemorySharedCache(), watermark, true, 120, 5);
+    AtomicInteger loads = new AtomicInteger();
+
+    readerReplica.find(7L, "x.jar", () -> {
+      loads.incrementAndGet();
+      return Optional.of(new Loaded(asset(1L, 7L, "x.jar"), blob(10L)));
+    });
+    writerReplica.evictAfterCommit(7L, "x.jar");
+    Optional<CachedAssetMetadata> refreshed = readerReplica.find(7L, "x.jar", () -> {
+      loads.incrementAndGet();
+      return Optional.of(new Loaded(asset(2L, 7L, "x.jar"), blob(20L)));
+    });
+
+    assertEquals(2, loads.get());
+    assertEquals(2L, refreshed.orElseThrow().assetId());
+  }
+
+  @Test
+  void watermarkReadFailureBypassesCacheForReadsAndTouches() {
+    VersionWatermark watermark = mock(VersionWatermark.class);
+    when(watermark.current("asset-metadata:repo:7"))
+        .thenThrow(new IllegalStateException("watermark unavailable"));
+    AssetMetadataCache cache = new AssetMetadataCache(
+        sharedCache, watermark, true, 120, 5);
+    AtomicInteger loads = new AtomicInteger();
+
+    Optional<CachedAssetMetadata> loaded = cache.find(7L, "x.jar", () -> {
+      loads.incrementAndGet();
+      return Optional.of(new Loaded(asset(1L, 7L, "x.jar"), blob(10L)));
+    });
+    cache.touchVerified(7L, "x.jar", Instant.now());
+
+    assertEquals(1, loads.get());
+    assertEquals(1L, loaded.orElseThrow().assetId());
+    assertFalse(sharedCache.getString("asset-metadata", "7:x.jar").isPresent(),
+        "watermark failures must bypass shared cache reads and writes");
+  }
+
+  @Test
+  void watermarkBumpFailureStillEvictsTheLocalEntry() {
+    VersionWatermark watermark = mock(VersionWatermark.class);
+    when(watermark.current("asset-metadata:repo:7")).thenReturn(0L);
+    when(watermark.bump("asset-metadata:repo:7"))
+        .thenThrow(new IllegalStateException("watermark unavailable"));
+    AssetMetadataCache cache = new AssetMetadataCache(
+        sharedCache, watermark, true, 120, 5);
+    cache.find(7L, "x.jar",
+        () -> Optional.of(new Loaded(asset(1L, 7L, "x.jar"), blob(10L))));
+    assertTrue(sharedCache.getString("asset-metadata", "7:x.jar").isPresent());
+
+    cache.evict(7L, "x.jar");
+
+    assertFalse(sharedCache.getString("asset-metadata", "7:x.jar").isPresent());
   }
 
   @Test

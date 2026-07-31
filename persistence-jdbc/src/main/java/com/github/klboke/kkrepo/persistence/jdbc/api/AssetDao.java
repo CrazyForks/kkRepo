@@ -57,6 +57,36 @@ public interface AssetDao {
         asset.assetBlobId() == null ? null : findBlobById(asset.assetBlobId()).orElse(null)));
   }
 
+  /**
+   * Returns a stable keyset page for management API asset enumeration.
+   *
+   * <p>Production JDBC implementations override this with a bounded join. The default keeps
+   * focused test adapters source-compatible and must not be used for large repositories.
+   */
+  default List<AssetWithBlob> listAssetWithBlobPage(
+      long repositoryId, long afterAssetId, int maxItems) {
+    return listAssetsByPrefix(repositoryId, "").stream()
+        .filter(asset -> asset.id() != null && asset.id() > afterAssetId)
+        .sorted(java.util.Comparator.comparingLong(AssetRecord::id))
+        .limit(Math.max(1, maxItems))
+        .map(asset -> new AssetWithBlob(
+            asset,
+            asset.assetBlobId() == null ? null : findBlobById(asset.assetBlobId()).orElse(null)))
+        .toList();
+  }
+
+  /**
+   * Returns a stable keyset page of assets whose owning component has the requested name.
+   *
+   * <p>Asset management search uses component coordinates rather than storage paths. Production
+   * implementations override this with a bounded join; the default is intentionally empty because
+   * an asset row alone does not carry its component name.
+   */
+  default List<AssetWithBlob> listAssetWithBlobPageByComponentName(
+      long repositoryId, String componentName, long afterAssetId, int maxItems) {
+    return List.of();
+  }
+
   Optional<AssetRecord> findDockerBlobAssetBySha256(long repositoryId, String sha256);
 
   /**
