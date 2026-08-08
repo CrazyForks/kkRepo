@@ -224,6 +224,109 @@ class ArchiveGuardTest {
   }
 
   @Test
+  void condaInspectionAcceptsOnlyLinksThatStayInsideTheArchive() throws IOException {
+    Path safe = temporary.resolve("conda-safe-links.tar");
+    try (TarArchiveOutputStream output =
+        new TarArchiveOutputStream(Files.newOutputStream(safe))) {
+      writeTarEntry(output, "lib/libdemo.so.1", "library".getBytes());
+      TarArchiveEntry symlink = new TarArchiveEntry("lib/libdemo.so", TarConstants.LF_SYMLINK);
+      symlink.setLinkName("libdemo.so.1");
+      output.putArchiveEntry(symlink);
+      output.closeArchiveEntry();
+      TarArchiveEntry hardlink = new TarArchiveEntry("lib/libdemo-hard", TarConstants.LF_LINK);
+      hardlink.setLinkName("lib/libdemo.so.1");
+      output.putArchiveEntry(hardlink);
+      output.closeArchiveEntry();
+    }
+
+    ArchiveGuard.Inspection inspection =
+        guard.inspectConda(safe, limits(10, 1024), temporary, deadline());
+
+    assertThat(inspection.entries()).isEqualTo(3);
+    assertThatThrownBy(() -> guard.inspect(safe, limits(10, 1024), temporary, deadline()))
+        .isInstanceOf(ScannerRequestException.class)
+        .extracting(failure -> ((ScannerRequestException) failure).code())
+        .isEqualTo("ARCHIVE_SPECIAL_FILE_REJECTED");
+
+    Path escaping = temporary.resolve("conda-escaping-link.tar");
+    try (TarArchiveOutputStream output =
+        new TarArchiveOutputStream(Files.newOutputStream(escaping))) {
+      TarArchiveEntry link = new TarArchiveEntry("lib/libdemo.so", TarConstants.LF_SYMLINK);
+      link.setLinkName("../../outside");
+      output.putArchiveEntry(link);
+      output.closeArchiveEntry();
+    }
+    assertThatThrownBy(
+            () -> guard.inspectConda(escaping, limits(10, 1024), temporary, deadline()))
+        .isInstanceOf(ScannerRequestException.class)
+        .extracting(failure -> ((ScannerRequestException) failure).code())
+        .isEqualTo("ARCHIVE_LINK_ESCAPE");
+  }
+
+  @Test
+  void condaInspectionReadsExactlyOneNonEmptyIndexAndWrapsMalformedInput() throws IOException {
+    Path valid = temporary.resolve("conda-index.tar");
+    try (TarArchiveOutputStream output =
+        new TarArchiveOutputStream(Files.newOutputStream(valid))) {
+      writeTarEntry(output, "info/index.json", "{\"name\":\"demo\"}".getBytes());
+    }
+    assertThat(guard.inspectConda(valid, limits(10, 1024), temporary, deadline()).condaIndex())
+        .isEqualTo("{\"name\":\"demo\"}".getBytes());
+
+    Path duplicate = temporary.resolve("conda-duplicate-index.tar");
+    try (TarArchiveOutputStream output =
+        new TarArchiveOutputStream(Files.newOutputStream(duplicate))) {
+      writeTarEntry(output, "info/index.json", "{}".getBytes());
+      writeTarEntry(output, "info/index.json", "{}".getBytes());
+    }
+    assertThatThrownBy(
+            () -> guard.inspectConda(duplicate, limits(10, 1024), temporary, deadline()))
+        .isInstanceOf(ScannerRequestException.class)
+        .extracting(failure -> ((ScannerRequestException) failure).code())
+        .isEqualTo("CONDA_INDEX_DUPLICATE");
+
+    Path empty = temporary.resolve("conda-empty-index.tar");
+    try (TarArchiveOutputStream output =
+        new TarArchiveOutputStream(Files.newOutputStream(empty))) {
+      writeTarEntry(output, "info/index.json", new byte[0]);
+    }
+    assertThatThrownBy(
+            () -> guard.inspectConda(empty, limits(10, 1024), temporary, deadline()))
+        .isInstanceOf(ScannerRequestException.class)
+        .extracting(failure -> ((ScannerRequestException) failure).code())
+        .isEqualTo("CONDA_INDEX_EMPTY");
+
+    assertThatThrownBy(() -> guard.inspectConda(
+            temporary.resolve("missing.conda"), limits(10, 1024), temporary, deadline()))
+        .isInstanceOf(ScannerRequestException.class)
+        .extracting(failure -> ((ScannerRequestException) failure).code())
+        .isEqualTo("ARCHIVE_INVALID");
+  }
+
+  @Test
+  void condaInspectionRejectsSpecialFilesAndUnsafeLinkTargetShapes() throws IOException {
+    Path special = temporary.resolve("conda-special.tar");
+    try (TarArchiveOutputStream output =
+        new TarArchiveOutputStream(Files.newOutputStream(special))) {
+      TarArchiveEntry fifo = new TarArchiveEntry("device", TarConstants.LF_FIFO);
+      output.putArchiveEntry(fifo);
+      output.closeArchiveEntry();
+    }
+    assertThatThrownBy(
+            () -> guard.inspectConda(special, limits(10, 1024), temporary, deadline()))
+        .isInstanceOf(ScannerRequestException.class)
+        .extracting(failure -> ((ScannerRequestException) failure).code())
+        .isEqualTo("ARCHIVE_SPECIAL_FILE_REJECTED");
+
+    for (String target : new String[] {null, "", "/absolute", "C:\\absolute"}) {
+      assertThatThrownBy(() -> ArchiveGuard.validateLinkTarget("lib/demo", target, true))
+          .isInstanceOf(ScannerRequestException.class)
+          .extracting(failure -> ((ScannerRequestException) failure).code())
+          .isEqualTo("ARCHIVE_LINK_ESCAPE");
+    }
+  }
+
+  @Test
   void stopsArchiveTraversalWhenTheSharedDeadlineExpires() throws IOException {
     Path archive = zip("deadline.zip", "entry.txt", "content".getBytes());
     AtomicLong clock = new AtomicLong();
