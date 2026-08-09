@@ -489,6 +489,60 @@ curl -u "alice:$KKREPO_PASSWORD" \
 
 Package filename、`info/index.json` 中的 name/version/build 和目标 subdir 必须一致。kkRepo 会重建 `repodata.json`、`repodata.json.bz2`、`repodata.json.zst`、`current_repodata.json*` 与 `channeldata.json`，不要把生成的 metadata 当作 package content 上传。
 
+## APT / Debian
+
+把仓库公钥下载到独立 keyring：
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl --fail --show-error -u alice:"$KKREPO_PASSWORD" \
+  -o /tmp/kkrepo-apt.asc \
+  https://nexus.example.com/repository/apt-hosted/gpg.key
+sudo install -m 0644 /tmp/kkrepo-apt.asc /etc/apt/keyrings/kkrepo.asc
+rm -f /tmp/kkrepo-apt.asc
+```
+
+配置 `/etc/apt/sources.list.d/kkrepo.list`：
+
+```text
+deb [signed-by=/etc/apt/keyrings/kkrepo.asc] https://nexus.example.com/repository/apt-hosted stable main
+```
+
+私有仓库不要把凭据放进 URL，应写入 `/etc/apt/auth.conf.d/kkrepo.conf`：
+
+```text
+machine nexus.example.com/repository/apt-hosted/
+login alice
+password <password-or-token>
+```
+
+```bash
+chmod 0600 /etc/apt/auth.conf.d/kkrepo.conf
+apt-get update
+apt-get install demo-package
+```
+
+通过 Nexus 兼容的仓库根 endpoint 上传二进制 package：
+
+```bash
+curl -u alice:"$KKREPO_PASSWORD" \
+  -H 'Content-Type: multipart/form-data' \
+  --data-binary @demo-package_1.0.0-1_amd64.deb \
+  https://nexus.example.com/repository/apt-hosted/
+```
+
+Components API 和 Admin UI 使用唯一的 `apt.asset` 字段。只有 `apt-hosted`
+接受上传；`apt-proxy` 只读，系统不暴露 APT group。
+
+```bash
+curl -u alice:"$KKREPO_PASSWORD" \
+  -F apt.asset=@demo-package_1.0.0-1_amd64.deb \
+  'https://nexus.example.com/service/rest/v1/components?repository=apt-hosted'
+```
+
+签名密钥生命周期、异步发布状态、Proxy 模式、snapshot 保留、清理、迁移与恢复说明见
+[APT / Debian 仓库使用指南](apt-debian-guide.md)。
+
 ## NuGet
 
 添加 source：

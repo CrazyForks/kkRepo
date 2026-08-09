@@ -490,6 +490,61 @@ curl -u "alice:$KKREPO_PASSWORD" \
 
 The package filename, `info/index.json` name/version/build, and target subdir must agree. kkRepo rebuilds `repodata.json`, `repodata.json.bz2`, `repodata.json.zst`, `current_repodata.json*`, and `channeldata.json`; do not upload generated metadata as package content.
 
+## APT / Debian
+
+Download the repository public key into a scoped keyring:
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl --fail --show-error -u alice:"$KKREPO_PASSWORD" \
+  -o /tmp/kkrepo-apt.asc \
+  https://nexus.example.com/repository/apt-hosted/gpg.key
+sudo install -m 0644 /tmp/kkrepo-apt.asc /etc/apt/keyrings/kkrepo.asc
+rm -f /tmp/kkrepo-apt.asc
+```
+
+Configure `/etc/apt/sources.list.d/kkrepo.list`:
+
+```text
+deb [signed-by=/etc/apt/keyrings/kkrepo.asc] https://nexus.example.com/repository/apt-hosted stable main
+```
+
+For a private repository, keep credentials out of the URL and put them in
+`/etc/apt/auth.conf.d/kkrepo.conf`:
+
+```text
+machine nexus.example.com/repository/apt-hosted/
+login alice
+password <password-or-token>
+```
+
+```bash
+chmod 0600 /etc/apt/auth.conf.d/kkrepo.conf
+apt-get update
+apt-get install demo-package
+```
+
+Upload a binary package through the Nexus-compatible repository-root endpoint:
+
+```bash
+curl -u alice:"$KKREPO_PASSWORD" \
+  -H 'Content-Type: multipart/form-data' \
+  --data-binary @demo-package_1.0.0-1_amd64.deb \
+  https://nexus.example.com/repository/apt-hosted/
+```
+
+The Components API and Admin UI use the single `apt.asset` field. Only
+`apt-hosted` accepts uploads; `apt-proxy` is read-only and APT group is not exposed.
+
+```bash
+curl -u alice:"$KKREPO_PASSWORD" \
+  -F apt.asset=@demo-package_1.0.0-1_amd64.deb \
+  'https://nexus.example.com/service/rest/v1/components?repository=apt-hosted'
+```
+
+For signing-key lifecycle, asynchronous publication status, proxy modes, snapshot retention,
+cleanup, migration, and recovery, see the [APT / Debian Repository Guide](apt-debian-guide.md).
+
 ## NuGet
 
 Add a source:
